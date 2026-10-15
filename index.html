@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Rit-check">
 <title>Sherco Rit-check</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="logo.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:wght@400;500;600&family=Share+Tech+Mono&display=swap">
 <style>
 /* Layout: één kolom als een motordashboard. Bewust donker (Blackmoon), racing-oranje accent. De opwarmtimer neemt het hele scherm over. */
@@ -118,13 +120,15 @@ html, body { margin: 0; }
 * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 html, body, .ov { touch-action: manipulation; }
 .ov { padding-top: 16px; padding-bottom: 16px; }
+h1 { display: flex; align-items: center; gap: 10px; }
+.logo { width: 40px; height: 40px; border-radius: 10px; }
 </style>
 </head>
 <body>
 
 <div class="wrap">
   <div class="head">
-    <h1>Rit<span>-</span>check</h1>
+    <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
     <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23</div>
   </div>
 
