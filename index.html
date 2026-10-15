@@ -135,7 +135,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v6</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v7</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -172,6 +172,7 @@ const lists = {
       ]},
       { title: "Bijvullen", items: [
         { id: "s-benzine", what: "Genoeg benzine", why: "Tank bij als hij onder de helft zit, dan sta je nooit stil." },
+        { id: "s-kraan", what: "Benzinekraan open (ON)", why: "Dicht en je motor slaat na een paar honderd meter af. Op reserve (RES) alleen als je tank bijna leeg is, en dan direct tanken." },
         { id: "s-olie", what: "2T-olietankje niet bijna leeg", why: "Zonder olie kan je motor vastlopen." },
       ]},
       { title: "Kort nakijken", items: [
@@ -198,6 +199,7 @@ const lists = {
     groups: [
       { title: "Parkeren", items: [
         { id: "e-uit", what: "Motor uit, sleutel eruit", why: "Laat de sleutel nooit op de moto zitten." },
+        { id: "e-kraan", what: "Benzinekraan dicht (OFF)", why: "Zo kan er geen benzine in de carburateur lekken terwijl hij stilstaat. Stond hij op reserve? Tank dan voor de volgende rit." },
         { id: "e-plek", what: "Op een vaste, vlakke plek", why: "Zodat hij niet omvalt op de standaard." },
       ]},
       { title: "Sloten erop", items: [
