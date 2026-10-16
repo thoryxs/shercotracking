@@ -201,7 +201,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v19</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v20</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -819,57 +819,85 @@ function loop(t) {
   } else if (phase === "finished") { drawGauge(1, t, true); fxFrame(t, 1, false); }
   if (phase !== "idle") raf = requestAnimationFrame(loop);
 }
-// Motorgeluid (gesynthetiseerd 2-takt): stationair tijdens het opwarmen, opentrekken als hij klaar is
-let actx = null, eng = null;
-function audioUnlock() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch (e) {} }
-function engineStart() {
+// Motorgeluid: een 2-takt synth op sample-niveau. Elke ontsteking is een knal door de uitlaat (expansiekamer = metalen
+// "ring-ding" resonantie), met willekeurige overslagen: dat geeft het sputteren bij koud starten en het rauwe stationair.
+const ENGINE_SRC = `class S2T extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return [
+    { name: 'rpm', defaultValue: 30, minValue: 1, maxValue: 400, automationRate: 'k-rate' },
+    { name: 'miss', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
+    { name: 'gain', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' } ]; }
+  constructor() {
+    super(); this.ph = 0; this.next = 1; this.env = 0; this.amp = 0; this.lp = 0; this.lp2 = 0;
+    this.dl = new Float32Array(4096); this.di = 0;
+    this.rs = [[150, 60, 0.9], [620, 90, 0.55], [1350, 160, 0.35], [2900, 500, 0.18]].map(([f, bw, g]) => {
+      const r = Math.exp(-Math.PI * bw / sampleRate); return { a1: 2 * r * Math.cos(2 * Math.PI * f / sampleRate), a2: r * r, k: (1 - r) * g * 6, y1: 0, y2: 0 }; });
+    this.dec = Math.exp(-1 / (sampleRate * 0.0022));
+  }
+  process(_, outs, P) {
+    const o = outs[0][0], rpm = P.rpm[0], miss = P.miss[0], g = P.gain[0], step = rpm / sampleRate;
+    for (let i = 0; i < o.length; i++) {
+      this.ph += step;
+      if (this.ph >= this.next) {
+        this.ph = 0; this.next = 1 + (Math.random() - 0.5) * (0.12 + 0.5 * miss);
+        if (Math.random() > miss) { this.amp = 0.55 + Math.random() * 0.55; this.env = 1; }
+        else if (Math.random() < 0.12 * miss) { this.amp = 1.6; this.env = 1; } // naknal
+      }
+      const nz = Math.random() * 2 - 1, x = this.env * this.amp * (nz * 0.75 + this.env * 0.9);
+      this.env *= this.dec;
+      this.lp += (x - this.lp) * 0.06; this.lp2 += (this.lp - this.lp2) * 0.06;
+      let s = this.lp2 * 5.0;
+      for (const r of this.rs) { const y = r.k * x + r.a1 * r.y1 - r.a2 * r.y2; r.y2 = r.y1; r.y1 = y; s += y; }
+      const d = this.dl[(this.di - 118) & 4095], c = x * 0.5 + d * 0.62; this.dl[this.di] = c; this.di = (this.di + 1) & 4095;
+      s += c * 0.35 + nz * 0.012 * Math.min(1, rpm / 120);
+      o[i] = Math.tanh(s * 1.6) * g * 0.75;
+    }
+    return true;
+  }
+}
+registerProcessor('sherco-2t', S2T);`;
+let actx = null, eng = null, engMod = null;
+function audioUnlock() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume().catch(() => {}); } catch (e) {} }
+const ramp = (P, pts, t0) => pts.forEach(([t, v]) => P.linearRampToValueAtTime(v, t0 + t));
+async function engineStart() {
+  audioUnlock(); const ac = actx; if (!ac || !ac.audioWorklet || eng) return;
+  const tok = eng = { pending: true };
+  try { engMod = engMod || ac.audioWorklet.addModule(URL.createObjectURL(new Blob([ENGINE_SRC], { type: "application/javascript" }))); await engMod; }
+  catch (e) { engMod = null; if (eng === tok) eng = null; return; }
+  if (eng !== tok) return;
   try {
-    audioUnlock(); const ac = actx; if (!ac || eng) return;
-    const out = ac.createGain(), lp = ac.createBiquadFilter(), sh = ac.createWaveShaper(), curve = new Float32Array(512);
-    for (let i = 0; i < 512; i++) curve[i] = Math.tanh((i / 255.5 - 1) * 3.2);
-    sh.curve = curve; lp.type = "lowpass"; lp.Q.value = 4; lp.frequency.value = 0;
-    const o1 = ac.createOscillator(), o2 = ac.createOscillator(); o1.type = "sawtooth"; o2.type = "square"; o1.frequency.value = 0; o2.frequency.value = 0;
-    const half = ac.createGain(); half.gain.value = 0.45;
-    const nb = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), nd = nb.getChannelData(0);
-    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-    const nz = ac.createBufferSource(); nz.buffer = nb; nz.loop = true; const ng = ac.createGain(); ng.gain.value = 0.25;
-    // één toerental (ontstekingen per seconde) stuurt beide oscillatoren en de klankfilter
-    const rpm = ac.createConstantSource(), wob = ac.createOscillator(), wg = ac.createGain();
-    rpm.offset.value = 30; wob.frequency.value = 1.7; wg.gain.value = 1.6; wob.connect(wg).connect(rpm.offset);
-    const k = (v, dst) => { const g = ac.createGain(); g.gain.value = v; rpm.connect(g).connect(dst); };
-    k(1, o1.frequency); k(0.5, o2.frequency); k(9, lp.frequency);
-    o1.connect(sh); o2.connect(half).connect(sh); nz.connect(ng).connect(sh); sh.connect(lp).connect(out).connect(ac.destination);
-    const t = ac.currentTime;
-    out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.12, t + 0.6);
-    // starten: kort kick, aanslaan en even optoeren
-    rpm.offset.setValueAtTime(8, t); rpm.offset.exponentialRampToValueAtTime(70, t + 0.35); rpm.offset.exponentialRampToValueAtTime(36, t + 1.2);
-    [o1, o2, nz, rpm, wob].forEach(n => n.start(t));
-    eng = { ac, out, rpm, t0: t, idle: 0, nodes: [o1, o2, nz, rpm, wob] };
+    const n = new AudioWorkletNode(ac, "sherco-2t", { outputChannelCount: [1] }), hp = ac.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 35; n.connect(hp).connect(ac.destination);
+    const R = n.parameters.get("rpm"), Mi = n.parameters.get("miss"), G = n.parameters.get("gain"), t = ac.currentTime + 0.05;
+    // kickstart: traag sputteren, nog eens, dan slaat hij aan met een blip en loopt hij koud en hortend stationair
+    R.setValueAtTime(7, t); Mi.setValueAtTime(0.65, t); G.setValueAtTime(0.42, t);
+    ramp(R, [[0.6, 13], [0.75, 8], [1.2, 16], [1.45, 70], [1.7, 95], [2.1, 44]], t);
+    ramp(Mi, [[0.6, 0.6], [1.2, 0.45], [1.45, 0.05], [1.8, 0.1], [2.3, 0.32]], t);
+    ramp(G, [[1.45, 0.5], [2.1, 0.38]], t);
+    Object.assign(tok, { pending: false, ac, node: n, R, Mi, G, t0: t, idle: 0 });
   } catch (e) { eng = null; }
 }
-function engineIdle(p) { // koud loopt hij wat hoger en ruwer, warm zakt hij rustig naar stationair
-  if (!eng || eng.revving || eng.ac.currentTime - eng.t0 < 1.3) return;
-  const v = Math.round((38 - 8 * p) * 2) / 2; if (v === eng.idle) return; eng.idle = v;
-  try { eng.rpm.offset.setTargetAtTime(v, eng.ac.currentTime, 0.5); } catch (e) {}
+function engineIdle(p) { // koud: hoger en sputterend; warm: lager en rond
+  const e = eng; if (!e || !e.node || e.revving || e.ac.currentTime - e.t0 < 2.4) return;
+  const v = Math.round((44 - 12 * p) * 2) / 2; if (v === e.idle) return; e.idle = v;
+  try { const t = e.ac.currentTime; e.R.setTargetAtTime(v, t, 0.6); e.Mi.setTargetAtTime(Math.max(0.04, 0.32 - 0.28 * p), t, 0.6); } catch (x) {}
 }
 function engineRev() {
-  if (!eng) return;
+  const e = eng; if (!e || !e.node) return;
   try {
-    eng.revving = true;
-    const P = eng.rpm.offset, t0 = eng.ac.currentTime;
-    P.cancelScheduledValues(t0); P.setValueAtTime(P.value || 30, t0);
-    [[0.25, 150], [0.5, 95], [0.7, 60], [0.95, 172], [1.35, 120], [1.8, 40], [2.4, 30]].forEach(([t, v]) => P.exponentialRampToValueAtTime(v, t0 + t));
-    eng.out.gain.cancelScheduledValues(t0); eng.out.gain.setValueAtTime(eng.out.gain.value, t0);
-    eng.out.gain.linearRampToValueAtTime(0.22, t0 + 0.2); eng.out.gain.setValueAtTime(0.22, t0 + 1.6); eng.out.gain.linearRampToValueAtTime(0.1, t0 + 2.4);
-    setTimeout(() => { if (eng) eng.revving = false; }, 2500);
-  } catch (e) {}
+    e.revving = true; const t = e.ac.currentTime;
+    for (const P of [e.R, e.Mi, e.G]) { P.cancelScheduledValues(t); P.setValueAtTime(P.value, t); }
+    ramp(e.R, [[0.18, 120], [0.38, 175], [0.6, 85], [0.8, 60], [1.0, 190], [1.45, 205], [1.7, 110], [2.2, 42], [2.8, 32]], t);
+    ramp(e.Mi, [[0.15, 0.02], [1.45, 0.02], [1.6, 0.3], [2.2, 0.25], [2.8, 0.06]], t); // gas dicht: plofjes uit de uitlaat
+    ramp(e.G, [[0.2, 0.55], [1.5, 0.55], [2.8, 0.34]], t);
+    setTimeout(() => { if (eng === e) e.revving = false; }, 2900);
+  } catch (x) {}
 }
 function engineStop() {
-  if (!eng) return; const e = eng; eng = null;
-  try { const t = e.ac.currentTime; e.out.gain.cancelScheduledValues(t); e.out.gain.setValueAtTime(e.out.gain.value, t); e.out.gain.linearRampToValueAtTime(0, t + 0.4); e.nodes.forEach(n => n.stop(t + 0.45)); } catch (x) {}
+  const e = eng; eng = null; if (!e || !e.node) return;
+  try { const t = e.ac.currentTime; e.G.cancelScheduledValues(t); e.G.setValueAtTime(e.G.value, t); e.G.linearRampToValueAtTime(0, t + 0.4); setTimeout(() => { try { e.node.disconnect(); } catch (x) {} }, 600); } catch (x) {}
 }
 function beep() {
-  if (eng) engineRev(); else { engineStart(); setTimeout(engineRev, 1200); setTimeout(engineStop, 4000); }
+  if (eng) engineRev(); else { engineStart(); setTimeout(engineRev, 2400); setTimeout(engineStop, 5600); }
   try { navigator.vibrate && navigator.vibrate([120, 60, 300, 80, 500]); } catch (e) {}
 }
 async function startWarm() {
@@ -977,7 +1005,7 @@ document.addEventListener("dblclick", ev => ev.preventDefault());
 </script>
 <script>
 /* Live update: kijkt bij openen en bij terugkeren naar de app of er een nieuwere versie op GitHub staat */
-const APP_VERSION = 19;
+const APP_VERSION = 20;
 async function checkUpdate() {
   try {
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
