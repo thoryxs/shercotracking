@@ -201,7 +201,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v16</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v17</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -934,7 +934,7 @@ document.addEventListener("dblclick", ev => ev.preventDefault());
 </script>
 <script>
 /* Live update: kijkt bij openen en bij terugkeren naar de app of er een nieuwere versie op GitHub staat */
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 async function checkUpdate() {
   try {
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
