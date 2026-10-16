@@ -67,6 +67,8 @@ uniform float uMode;      // 0 = alles normaal, 1 = opwarmen, 2 = onderhoud
 uniform float uActive;    // actieve opwarmstap
 uniform float uFill[5];
 uniform float uSelBit;
+uniform float uSelPrev;
+uniform float uSelMix;
 uniform float uTime;
 flat varying float vWZ;
 varying float vWT;
@@ -74,7 +76,10 @@ flat varying float vMZ;
 bool inSel() {
   if (uMode < 0.5) return true;
   if (uMode < 1.5) return vWZ > -0.5 && vWZ < uActive + 0.5;
-  return mod(floor(vMZ / uSelBit), 2.0) > 0.5;
+  bool a = mod(floor(vMZ / uSelBit), 2.0) > 0.5, b = mod(floor(vMZ / uSelPrev), 2.0) > 0.5;
+  if (a == b) return a;
+  float n = fract(sin(dot(floor(gl_FragCoord.xy / 3.0), vec2(12.9898, 78.233))) * 43758.5453);
+  return a ? n < uSelMix : n >= uSelMix;
 }
 `;
 function patchSolid(mat) {
@@ -130,8 +135,41 @@ void main() {
 }`,
 });
 const shared = {
-  uMode: { value: 0 }, uActive: { value: 0 }, uFill: { value: [0, 0, 0, 0, 0] }, uSelBit: { value: 1 }, uTime: { value: 0 },
+  uMode: { value: 0 }, uActive: { value: 0 }, uFill: { value: [0, 0, 0, 0, 0] }, uSelBit: { value: 1 }, uSelPrev: { value: 1 }, uSelMix: { value: 1 }, uTime: { value: 0 },
 };
+
+// Hele losse stukjes (eilanden) krijgen één zone, zodat onderdelen niet in scherven breken.
+function cleanIslands(geo, pos, wz, wt, mz) {
+  const n = pos.count, par = new Int32Array(n).map((_, i) => i);
+  const f = (i) => { while (par[i] !== i) i = par[i] = par[par[i]]; return i; };
+  const u = (a, b) => { a = f(a); b = f(b); if (a !== b) par[a] = b; };
+  const seen = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = Math.round(pos.getX(i) * 1e4) + ',' + Math.round(pos.getY(i) * 1e4) + ',' + Math.round(pos.getZ(i) * 1e4);
+    const j = seen.get(k); if (j === undefined) seen.set(k, i); else u(i, j);
+  }
+  const idx = geo.index ? geo.index.array : null;
+  if (idx) for (let i = 0; i < idx.length; i += 3) { u(idx[i], idx[i + 1]); u(idx[i], idx[i + 2]); }
+  else for (let i = 0; i < n; i += 3) { u(i, i + 1); u(i, i + 2); }
+  const isl = new Map();
+  for (let i = 0; i < n; i++) {
+    const r = f(i); let o = isl.get(r);
+    if (!o) isl.set(r, (o = { c: 0, z: [0, 0, 0, 0, 0], t: [0, 0, 0, 0, 0], b: new Array(MAINT_KEYS.length).fill(0) }));
+    o.c++; if (wz[i] >= 0) { o.z[wz[i]]++; o.t[wz[i]] += wt[i]; }
+    for (let b = 0; b < o.b.length; b++) if (Math.floor(mz[i] / 2 ** b) % 2) o.b[b]++;
+  }
+  for (const o of isl.values()) {
+    if (o.c > n * 0.06) { o.skip = true; continue; } // grote stukken (frame) per punt laten
+    let bz = -1, bc = 0; o.z.forEach((c, z) => { if (c > bc) { bc = c; bz = z; } });
+    o.wz = bc / o.c >= 0.4 ? bz : -1; o.avg = bz >= 0 ? o.t[bz] / Math.max(1, bc) : 0;
+    o.mz = o.b.reduce((m, c, b) => m + (c / o.c >= 0.4 ? 2 ** b : 0), 0);
+  }
+  for (let i = 0; i < n; i++) {
+    const o = isl.get(f(i)); if (o.skip) continue;
+    if (wz[i] !== o.wz) { wz[i] = o.wz; wt[i] = o.avg; }
+    mz[i] = o.mz;
+  }
+}
 
 // ---- model laden en zones berekenen (één keer) ----
 let modelPromise = null;
@@ -153,6 +191,7 @@ function loadModel() {
           MAINT_KEYS.forEach((key, b) => { if (MAINT[key].some((s) => inShape(s, v.x, v.y, v.z) >= 0)) bits += 2 ** b; });
           mz[i] = bits;
         }
+        cleanIslands(geo, pos, wz, wt, mz);
         geo.setAttribute('wz', new THREE.BufferAttribute(wz, 1));
         geo.setAttribute('wt', new THREE.BufferAttribute(wt, 1));
         geo.setAttribute('mz', new THREE.BufferAttribute(mz, 1));
@@ -166,7 +205,13 @@ function loadModel() {
         const pos = m.geometry.attributes.position, wz = m.geometry.attributes.wz.array, v = new THREE.Vector3();
         for (let i = 0; i < pos.count; i++) if (wz[i] >= 0) { v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); const z = centers[wz[i]]; z.min.min(v); z.max.max(v); z.c++; }
       }
-      res({ scene: g.scene, meshes, zones: centers.map((z) => ({ center: z.min.clone().add(z.max).multiplyScalar(0.5), size: z.max.clone().sub(z.min).length() })) });
+      const mbox = MAINT_KEYS.map(() => new THREE.Box3());
+      for (const m of meshes) {
+        const pos = m.geometry.attributes.position, mz = m.geometry.attributes.mz.array, v = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) if (mz[i]) { v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); mbox.forEach((bx, b) => { if (Math.floor(mz[i] / 2 ** b) % 2) bx.expandByPoint(v); }); }
+      }
+      const mzones = mbox.map((bx) => (bx.isEmpty() ? { center: FULL.target.clone(), size: 1 } : { center: bx.getCenter(new THREE.Vector3()), size: bx.getSize(new THREE.Vector3()).length() }));
+      res({ scene: g.scene, meshes, mzones, zones: centers.map((z) => ({ center: z.min.clone().add(z.max).multiplyScalar(0.5), size: z.max.clone().sub(z.min).length() })) });
     }, undefined, rej);
   });
   return modelPromise;
@@ -230,6 +275,9 @@ const FULL = { target: new THREE.Vector3(-0.03, 0.31, 0), dist: 2.05 };
 const SHOTS = [ // camerahoek per opwarmstap: [azimut, elevatie, afstandsfactor]
   [0.35, 0.22, 3.2], [0.75, 0.12, 2.6], [0.15, 0.25, 3.0], [0.6, 0.1, 3.4], [-0.7, 0.2, 3.6],
 ];
+let mKey = 0, mSwitch = 0;
+const M_AZ = MAINT_KEYS.map((k) => ({ ketting: -0.55, banden: 0.6, koeling: 0.9, remmen: 0.75, filter: -0.35, bougie: 0.5 }[k] ?? 0.5));
+const mDist = (z) => Math.min(FULL.dist * 0.95, Math.max(0.9, z.size * 1.9));
 let model = null, warmView = null, maintView = null, maintHost = null, maintRaf = 0;
 const api = {
   ready: false,
@@ -257,20 +305,26 @@ const api = {
   maint(host, key) {
     if (!model) return false;
     if (!maintView) maintView = makeView(model);
-    maintHost = host; host.appendChild(maintView.el); host.classList.add('has3d');
-    const bit = 2 ** Math.max(0, MAINT_KEYS.indexOf(key));
-    cancelAnimationFrame(maintRaf);
-    const t0 = performance.now();
-    const loop = () => {
-      if (!maintHost || !maintHost.isConnected || !maintHost.offsetParent) { maintRaf = 0; return; }
-      const t = (performance.now() - t0) / 1000;
-      shared.uMode.value = 2; shared.uSelBit.value = bit;
-      maintView.aim(FULL.target, FULL.dist * 0.95, 0.5 + Math.sin(t * 0.35) * 0.55, 0.16);
-      maintView.render(maintHost);
+    if (maintView.el.parentNode !== host) { host.appendChild(maintView.el); host.classList.add('has3d'); }
+    maintHost = host;
+    const ki = Math.max(0, MAINT_KEYS.indexOf(key)), bit = 2 ** ki;
+    if (bit !== shared.uSelBit.value) { shared.uSelPrev.value = shared.uSelBit.value; shared.uSelBit.value = bit; mSwitch = performance.now(); }
+    mKey = ki;
+    if (!maintRaf) {
+      const z0 = model.mzones[ki];
+      maintView.aim(z0.center.clone().lerp(FULL.target, 0.45), mDist(z0), M_AZ[ki], 0.18); maintView.snap();
+      const t0 = performance.now();
+      const loop = () => {
+        if (!maintHost || !maintHost.isConnected || !maintHost.offsetParent) { maintRaf = 0; return; }
+        const now = performance.now(), t = (now - t0) / 1000, z = model.mzones[mKey];
+        shared.uMode.value = 2;
+        shared.uSelMix.value = Math.min(1, (now - mSwitch) / 700);
+        maintView.aim(z.center.clone().lerp(FULL.target, 0.45), mDist(z), M_AZ[mKey] + Math.sin(t * 0.3) * 0.18, 0.18);
+        maintView.render(maintHost);
+        maintRaf = requestAnimationFrame(loop);
+      };
       maintRaf = requestAnimationFrame(loop);
-    };
-    maintView.aim(FULL.target, FULL.dist * 0.95, 0.5, 0.16); maintView.snap();
-    loop();
+    }
     return true;
   },
 };
