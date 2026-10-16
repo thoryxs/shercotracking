@@ -201,7 +201,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v17</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v18</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -819,19 +819,34 @@ function loop(t) {
   } else if (phase === "finished") { drawGauge(1, t, true); fxFrame(t, 1, false); }
   if (phase !== "idle") raf = requestAnimationFrame(loop);
 }
+// Geluid als hij klaar is: een 2-takt die twee keer opentrekt (gesynthetiseerd, geen bestand nodig)
+let actx = null;
+function audioUnlock() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch (e) {} }
 function beep() {
   try {
-    const ac = new (window.AudioContext || window.webkitAudioContext)();
-    [0, .18, .36].forEach((t, i) => {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = "square"; o.frequency.value = i === 2 ? 880 : 660;
-      g.gain.setValueAtTime(.08, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + t + .15);
-      o.connect(g).connect(ac.destination); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + .16);
-    });
+    audioUnlock(); const ac = actx; if (!ac) throw 0;
+    const t0 = ac.currentTime + 0.05, end = t0 + 2.6;
+    const out = ac.createGain(), lp = ac.createBiquadFilter(), sh = ac.createWaveShaper(), curve = new Float32Array(512);
+    for (let i = 0; i < 512; i++) { const x = i / 255.5 - 1; curve[i] = Math.tanh(x * 3.2); }
+    sh.curve = curve; lp.type = "lowpass"; lp.Q.value = 4;
+    const o1 = ac.createOscillator(), o2 = ac.createOscillator(); o1.type = "sawtooth"; o2.type = "square";
+    const half = ac.createGain(); half.gain.value = 0.45;
+    const nb = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), nd = nb.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const nz = ac.createBufferSource(); nz.buffer = nb; nz.loop = true; const ng = ac.createGain(); ng.gain.value = 0.25;
+    o1.connect(sh); o2.connect(half).connect(sh); nz.connect(ng).connect(sh); sh.connect(lp).connect(out).connect(ac.destination);
+    // toerental-curve in ontstekingen per seconde: stationair ~30, opentrekken tot ~170
+    const rpm = [[0, 32], [0.35, 34], [0.6, 150], [0.85, 95], [1.05, 60], [1.3, 172], [1.7, 120], [2.1, 45], [2.6, 32]];
+    const f = (p, mul) => rpm.forEach(([t, v], i) => i ? p.exponentialRampToValueAtTime(v * mul, t0 + t) : p.setValueAtTime(v * mul, t0));
+    f(o1.frequency, 1); f(o2.frequency, 0.5); f(lp.frequency, 9);
+    out.gain.setValueAtTime(0.0001, t0); out.gain.exponentialRampToValueAtTime(0.22, t0 + 0.08);
+    out.gain.setValueAtTime(0.22, end - 0.5); out.gain.exponentialRampToValueAtTime(0.0001, end);
+    [o1, o2, nz].forEach(n => { n.start(t0); n.stop(end + 0.05); });
   } catch (e) {}
-  try { navigator.vibrate && navigator.vibrate([200, 100, 200, 100, 400]); } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate([120, 60, 300, 80, 500]); } catch (e) {}
 }
 async function startWarm() {
+  audioUnlock();
   const m = MODES[modeIdx];
   try { window.bike3d && window.bike3d.warmReset(); } catch (e) {}
   warmSecs = m.secs; phase = "running"; parts = []; rings = []; smoke = []; lastT = 0; lastRing = 0;
@@ -934,7 +949,7 @@ document.addEventListener("dblclick", ev => ev.preventDefault());
 </script>
 <script>
 /* Live update: kijkt bij openen en bij terugkeren naar de app of er een nieuwere versie op GitHub staat */
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 async function checkUpdate() {
   try {
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
