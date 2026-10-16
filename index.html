@@ -33,8 +33,8 @@ h1 { font-family: var(--display); font-weight: 800; font-style: italic; font-siz
 h1 span { color: var(--accent); }
 .model { font-family: var(--mono); color: var(--muted); font-size: .8rem; text-align: right; line-height: 1.3; }
 
-.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 22px; }
-.tab { font-family: var(--display); font-weight: 800; font-style: italic; font-size: 1.35rem; text-transform: uppercase; letter-spacing: .04em; border: 1px solid var(--line); border-radius: 4px; padding: 10px 8px; background: var(--surface); color: var(--muted); cursor: pointer; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 22px; }
+.tab { font-family: var(--display); font-weight: 800; font-style: italic; font-size: 1.15rem; text-transform: uppercase; letter-spacing: .03em; border: 1px solid var(--line); border-radius: 4px; padding: 10px 8px; background: var(--surface); color: var(--muted); cursor: pointer; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
 .tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .tab:focus-visible, .row:focus-within, .btn:focus-visible, .mode:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
 
@@ -124,6 +124,19 @@ html, body, .ov { touch-action: manipulation; }
 .ov { padding-top: 16px; padding-bottom: 16px; }
 h1 { display: flex; align-items: center; gap: 10px; }
 .logo { width: 40px; height: 40px; border-radius: 10px; }
+.mpick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mchip { text-align: left; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 4px; padding: 10px 12px; cursor: pointer; display: grid; gap: 2px; font: inherit; font-size: .82rem; }
+.mchip b { font-family: var(--display); font-weight: 800; font-style: italic; font-size: 1.15rem; text-transform: uppercase; color: var(--fg); }
+.mchip .last { font-family: var(--mono); color: var(--muted); }
+.mchip[aria-pressed="true"] { border-color: var(--accent); background: var(--tip-bg); }
+.mchip[aria-pressed="true"] .last { color: var(--accent); }
+.mchip:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+.tip ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.mdone { width: 100%; margin-top: 18px; }
+.mdone.saved { background: var(--done); }
+h1 { font-size: clamp(1.8rem, 9vw, 2.6rem); min-width: 0; }
+.model { flex: none; font-size: .7rem; }
+.mchip { min-width: 0; overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -135,16 +148,18 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v8</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v9</div>
   </div>
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-start" aria-selected="true" data-pane="start">Vertrek</button>
     <button class="tab" role="tab" id="tab-end" aria-selected="false" data-pane="end">Terug</button>
+    <button class="tab" role="tab" id="tab-maint" aria-selected="false" data-pane="maint">Onderhoud</button>
   </div>
 
   <section id="pane-start" role="tabpanel" aria-labelledby="tab-start"></section>
   <section id="pane-end" role="tabpanel" aria-labelledby="tab-end" hidden></section>
+  <section id="pane-maint" role="tabpanel" aria-labelledby="tab-maint" hidden></section>
 </div>
 
 <div class="ov" id="ov" hidden role="dialog" aria-modal="true" aria-label="Opwarmen">
@@ -291,13 +306,176 @@ document.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () =
 
 function show(name) {
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.pane === name)));
-  ["start", "end"].forEach(p => document.getElementById("pane-" + p).hidden = p !== name);
+  ["start", "end", "maint"].forEach(p => document.getElementById("pane-" + p).hidden = p !== name);
   try { localStorage.setItem(KEY + "-tab", name); } catch (e) {}
 }
 document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => show(t.dataset.pane)));
-const fromHash = location.hash === "#terug" ? "end" : location.hash === "#vertrek" ? "start" : null;
+const fromHash = { "#terug": "end", "#vertrek": "start", "#onderhoud": "maint" }[location.hash] || null;
 let lastTab = null; try { lastTab = localStorage.getItem(KEY + "-tab"); } catch (e) {}
-show(fromHash || (lastTab === "end" ? "end" : "start"));
+show(fromHash || (["end", "maint"].includes(lastTab) ? lastTab : "start"));
+</script>
+<script>
+/* Onderhoud: eigen script, zodat een fout hier de rest niet stillegt */
+const MAINT = [
+  { id: "ketting", name: "Ketting", every: "300–500 km of na regen", groups: [
+    { title: "Stap 1 · Klaarzetten", items: [
+      { what: "Motor uit en in neutraal", why: "In neutraal kan je hem rollen. Nooit de ketting draaien met de motor aan of in een versnelling: je vingers!" },
+      { what: "Op de zijstandaard, of op een paddockstand", why: "Met een paddockstand kan je het achterwiel gewoon met je hand ronddraaien." },
+      { what: "Doek of karton onder de ketting", why: "Zo blijft de grond proper." },
+      { what: "Handschoenen aan", why: "Cleaner en lube krijg je moeilijk van je handen." },
+    ]},
+    { title: "Stap 2 · Chain cleaner", items: [
+      { what: "Spuit Motul Chain Clean op binnen- en buitenkant", why: "Alle schakels moeten nat zijn." },
+      { what: "Rol een stukje verder en herhaal", why: "Tot je de hele ketting rond bent." },
+      { what: "2 à 5 minuten laten inwerken", why: "Dan lost het vuil los." },
+    ]},
+    { title: "Stap 3 · Schrobben", items: [
+      { what: "Schrob met je kettingborstel", why: "Bovenkant, onderkant en zijkanten." },
+      { what: "Veeg alles droog met een droge doek", why: "De ketting moet helemaal droog zijn voor je smeert, anders pakt de lube niet." },
+    ]},
+    { title: "Stap 4 · Chain lube", items: [
+      { what: "Spuit Motul Chain Lube op de binnenkant", why: "Dat is de kant die over de tandwielen loopt. Mik op de rollen, niet op de band." },
+      { what: "Rol telkens een stukje verder", why: "Een dunne, gelijkmatige laag over de hele ketting." },
+      { what: "Veeg overtollige lube af", why: "Te veel lube vangt zand en vuil." },
+    ]},
+    { title: "Stap 5 · Spanning checken", items: [
+      { what: "Max 2 cm speling", why: "Duw onderaan in het midden de ketting op en neer. Meer dan 2 cm? Laten spannen." },
+    ]},
+    { title: "Stap 6 · Wachten", items: [
+      { what: "15 à 30 minuten wachten voor je rijdt", why: "Anders slingert de lube eraf." },
+    ]},
+  ], tips: [
+    "Geen hogedrukspuit en geen zeepwater: dat spoelt het vet tussen de schakels weg. Enkel de chain cleaner.",
+    "Niet op de achterband, remschijf of remklauw spuiten. Kwam er toch iets op? Afvegen met remmenreiniger en eerst voorzichtig remmen testen.",
+    "Een dunne laag is genoeg.",
+  ]},
+  { id: "banden", name: "Bandenspanning", every: "Elke week", groups: [
+    { title: "Stap 1 · Meten", items: [
+      { what: "Meet met koude banden", why: "Niet net na een rit, warme banden geven een te hoge waarde." },
+      { what: "Dopje van het ventiel en de meter erop", why: "Aan een tankstation of met je eigen drukmeter." },
+      { what: "Vergelijk met de juiste waarde", why: "Die staat in je handleiding of op een sticker. Vaak rond 1,8 à 2,0 bar, maar dat is niet nagekeken voor jouw moto." },
+    ]},
+    { title: "Stap 2 · Bijstellen", items: [
+      { what: "Oppompen of wat lucht laten lopen", why: "Voor en achter apart." },
+      { what: "Dopje terug op het ventiel", why: "Houdt vuil en vocht uit het ventiel." },
+      { what: "Kijk de banden na", why: "Geen scheuren, niets dat erin steekt, en nog genoeg profiel." },
+    ]},
+  ], tips: [
+    "Te zachte banden slijten snel en sturen slecht. Te harde banden hebben minder grip.",
+  ]},
+  { id: "koeling", name: "Koelvloeistof", every: "Elke week", groups: [
+    { title: "Stap 1 · Kijken", items: [
+      { what: "Motor helemaal koud", why: "Nooit de dop openen bij een warme motor: de vloeistof staat onder druk en is kokend heet." },
+      { what: "Moto rechtop", why: "Anders lees je het niveau verkeerd." },
+      { what: "Niveau tussen MIN en MAX", why: "In het reservoirtje, of net onder de radiateurdop." },
+    ]},
+    { title: "Stap 2 · Bijvullen (alleen als het te laag is)", items: [
+      { what: "Bijvullen met kant-en-klare koelvloeistof", why: "Geen gewoon kraantjeswater, dat roest en bevriest." },
+      { what: "Dop goed terugdraaien", why: "Tot hij vastzit." },
+    ]},
+  ], tips: [
+    "Moet je vaak bijvullen? Dan lekt er iets. Laat het nakijken.",
+  ]},
+  { id: "remmen", name: "Remvloeistof", every: "Elke maand", groups: [
+    { title: "Stap 1 · Kijken", items: [
+      { what: "Moto rechtop, stuur recht", why: "Zo staat het potje aan je stuur vlak." },
+      { what: "Kijk door het venstertje voor en achter", why: "Voor aan je stuur, achter bij het rempedaal." },
+      { what: "Niveau boven MIN", why: "De vloeistof moet helder zijn. Donkerbruin = laten vervangen." },
+    ]},
+    { title: "Stap 2 · Bijvullen (alleen als het te laag is)", items: [
+      { what: "Eerst je remblokken laten nakijken", why: "Het niveau zakt als je blokken slijten. Bijvullen lost dat niet op." },
+      { what: "Alleen DOT 4 uit een nieuwe fles", why: "Een open fles trekt vocht, dan remt het slechter." },
+    ]},
+  ], tips: [
+    "Remvloeistof tast lak aan. Gemorst? Meteen afvegen met water.",
+    "Bij twijfel over je remmen: laat het doen in de garage.",
+  ]},
+  { id: "filter", name: "Luchtfilter", every: "Elke maand", groups: [
+    { title: "Stap 1 · Eruit halen", items: [
+      { what: "Zijkap of zadel eraf", why: "Daaronder zit de luchtfilterkast." },
+      { what: "Spons eruit halen", why: "Kijk goed hoe hij zat, zodat hij er zo terug in gaat." },
+    ]},
+    { title: "Stap 2 · Kuisen", items: [
+      { what: "Uitwassen", why: "Met luchtfilterreiniger, of lauw water met wat afwasmiddel." },
+      { what: "Uitknijpen, niet wringen", why: "Wringen scheurt de spons." },
+      { what: "Laten drogen", why: "Helemaal droog voor je oliet." },
+    ]},
+    { title: "Stap 3 · Inoliën en terug", items: [
+      { what: "Inoliën met luchtfilterolie", why: "Kneed tot de hele spons licht gekleurd is, knijp het overschot eruit." },
+      { what: "Terugzetten zodat hij overal goed sluit", why: "Een kier = stof in je motor." },
+    ]},
+  ], tips: [
+    "Rijd je veel in stof of zand? Vaker kuisen.",
+    "Gescheurde spons? Vervangen, niet terugzetten.",
+  ]},
+  { id: "bougie", name: "Bougie", every: "4000 km of slecht starten", groups: [
+    { title: "Stap 1 · Eruit", items: [
+      { what: "Motor koud", why: "De bougie zit vast in heet metaal, dat kan je schroefdraad beschadigen." },
+      { what: "Bougiedop eraf trekken", why: "Trek aan de dop, niet aan de kabel." },
+      { what: "Losdraaien met een bougiesleutel", why: "Linksom." },
+    ]},
+    { title: "Stap 2 · Bekijken", items: [
+      { what: "Kleur van de punt", why: "Lichtbruin = goed. Zwart en nat = te veel benzine. Wit = te weinig, laat nakijken." },
+    ]},
+    { title: "Stap 3 · Nieuwe erin", items: [
+      { what: "NGK BR9ES, afstand 0,5 à 0,6 mm", why: "Afstand meten met een voelermaatje." },
+      { what: "Eerst met de hand indraaien", why: "Zo kan hij niet scheef gaan." },
+      { what: "Aanspannen tot hij aanligt, dan nog een kwartslag", why: "Niet te hard, het schroefdraad zit in aluminium." },
+      { what: "Dop terug tot hij klikt", why: "Een losse dop = motor die hapert of niet start." },
+    ]},
+  ], tips: [
+    "Een reservebougie onder je zadel kan je redden als hij onderweg niet meer start.",
+  ]},
+];
+
+(function initMaint() {
+  const pane = document.getElementById("pane-maint");
+  state._last = state._last || {};
+  let sel = MAINT.some(t => t.id === state._mt) ? state._mt : MAINT[0].id;
+  const fmtDate = iso => { try { return new Date(iso).toLocaleDateString("nl-BE", { day: "numeric", month: "short" }); } catch (e) { return iso.slice(0, 10); } };
+  const keyOf = (t, gi, ii) => `m-${t.id}-${gi}-${ii}`;
+
+  function draw() {
+    const t = MAINT.find(x => x.id === sel);
+    pane.innerHTML = `
+      <div class="group"><h2>Wat ga je doen?</h2>
+        <div class="mpick">${MAINT.map(m => `
+          <button class="mchip" type="button" data-id="${m.id}" aria-pressed="${m.id === sel}">
+            <b>${m.name}</b><span>${m.every}</span><span class="last">${state._last[m.id] ? "Laatst: " + fmtDate(state._last[m.id]) : "Nog niet gedaan"}</span>
+          </button>`).join("")}
+        </div>
+      </div>
+      <div class="bar"><div class="track"><div class="fill"></div></div><span class="count"></span></div>
+      ${t.groups.map((g, gi) => `
+        <div class="group"><h2>${g.title}</h2><div class="list">
+          ${g.items.map((it, ii) => `
+            <label class="row" for="${keyOf(t, gi, ii)}">
+              <input type="checkbox" id="${keyOf(t, gi, ii)}">
+              <span class="txt"><span class="what">${it.what}</span><br><span class="why">${it.why}</span></span>
+            </label>`).join("")}
+        </div></div>`).join("")}
+      <div class="tip"><b>Let op</b><ul>${t.tips.map(x => `<li>${x}</li>`).join("")}</ul></div>
+      <button class="btn mdone" id="mdone" type="button">${t.name} klaar</button>
+      <button class="reset" id="mreset" type="button">Opnieuw beginnen</button>`;
+
+    const keys = t.groups.flatMap((g, gi) => g.items.map((_, ii) => keyOf(t, gi, ii)));
+    const update = () => {
+      const n = keys.filter(k => state[k]).length;
+      pane.querySelector(".fill").style.width = (n / keys.length * 100) + "%";
+      pane.querySelector(".count").textContent = n + "/" + keys.length;
+      keys.forEach(k => { const b = document.getElementById(k); b.checked = !!state[k]; b.closest(".row").classList.toggle("checked", b.checked); });
+    };
+    keys.forEach(k => document.getElementById(k).addEventListener("change", e => { state[k] = e.target.checked; save(); update(); }));
+    pane.querySelectorAll(".mchip").forEach(b => b.addEventListener("click", () => { sel = b.dataset.id; state._mt = sel; save(); draw(); }));
+    document.getElementById("mreset").addEventListener("click", () => { keys.forEach(k => delete state[k]); save(); update(); });
+    document.getElementById("mdone").addEventListener("click", () => {
+      state._last[t.id] = new Date().toISOString(); keys.forEach(k => delete state[k]); save(); draw();
+      const d = document.getElementById("mdone"); d.textContent = "Opgeslagen ✓"; d.classList.add("saved");
+    });
+    update();
+  }
+  draw();
+})();
 </script>
 <script>
 /* Timer apart: als hier iets misgaat, blijft de checklist gewoon werken */
