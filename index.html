@@ -148,7 +148,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v9</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v10</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -650,6 +650,24 @@ document.addEventListener("touchmove", ev => { if (ev.touches.length > 1) ev.pre
 document.addEventListener("selectstart", ev => ev.preventDefault());
 document.addEventListener("contextmenu", ev => ev.preventDefault());
 document.addEventListener("dblclick", ev => ev.preventDefault());
+</script>
+<script>
+/* Live update: kijkt bij openen en bij terugkeren naar de app of er een nieuwere versie op GitHub staat */
+const APP_VERSION = 10;
+async function checkUpdate() {
+  try {
+    const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const { v } = await r.json();
+    const u = new URL(location.href);
+    if (v > APP_VERSION && u.searchParams.get("v") !== String(v)) { // nooit eindeloos herladen
+      u.searchParams.set("v", v);
+      location.replace(u.toString());
+    }
+  } catch (e) {}
+}
+checkUpdate();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
 </script>
 </body>
 </html>
