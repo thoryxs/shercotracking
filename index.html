@@ -158,6 +158,38 @@ h1 { font-size: clamp(1.8rem, 9vw, 2.6rem); min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .bike .part[data-hl] { animation: none; } }
 .has3d > svg { display: none !important; }
 .has3d > canvas { width: 100%; height: auto; aspect-ratio: 600 / 340; display: block; }
+
+/* --- Race-animaties --- */
+html, body { overflow-x: hidden; }
+@keyframes rx-in { from { opacity: 0; transform: translateX(calc(var(--d, 1) * 34px)) skewX(calc(var(--d, 1) * -8deg)); } to { opacity: 1; transform: none; } }
+@keyframes rx-up { from { opacity: 0; transform: translateY(14px) skewX(-6deg); } to { opacity: 1; transform: none; } }
+@keyframes rx-flag { from { transform: translateX(-110%) skewX(-20deg); } to { transform: translateX(210%) skewX(-20deg); } }
+@keyframes rx-pop { 0% { transform: scale(.6); } 55% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@keyframes rx-ring { from { box-shadow: 0 0 0 0 rgba(57,210,122,.7); } to { box-shadow: 0 0 0 16px rgba(57,210,122,0); } }
+@keyframes rx-sweep { from { background-position: -100% 0; } to { background-position: 200% 0; } }
+@keyframes rx-rev { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 70% { transform: rotate(-4deg); } }
+@keyframes rx-shine { 0%,70% { transform: translateX(-120%) skewX(-25deg); } 100% { transform: translateX(260%) skewX(-25deg); } }
+@keyframes rx-spark { to { transform: translate(var(--x), var(--y)) scale(.2); opacity: 0; } }
+@keyframes rx-check { from { background-position: 0 0; } to { background-position: 20px 0; } }
+.tab { position: relative; overflow: hidden; transition: transform .15s, background .25s, color .25s; }
+.tab::after { content: ""; position: absolute; inset: 0; width: 50%; background: repeating-conic-gradient(#000 0 25%, #fff 0 50%) 0 0 / 8px 8px; opacity: 0; pointer-events: none; }
+.tab.rx-go::after { opacity: .35; animation: rx-flag .45s ease-out forwards; }
+.tab:active, .btn:active, .mode:active, .mchip:active, .reset:active { transform: scale(.95) skewX(-4deg); }
+.btn, .mode, .mchip, .reset { transition: transform .12s, background .2s, border-color .2s; }
+.btn { position: relative; overflow: hidden; }
+.btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); animation: rx-shine 3.2s ease-in-out infinite; pointer-events: none; }
+.mode[aria-checked="true"] { animation: rx-pop .35s ease-out; box-shadow: 0 0 14px rgba(255,90,31,.35); }
+.rx-enter > * { animation: rx-in .38s cubic-bezier(.2,.9,.3,1.2) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.rx-enter .row { animation: rx-up .32s ease-out both; animation-delay: calc(120ms + var(--i, 0) * 28ms); }
+.row.checked input { animation: rx-pop .35s ease-out, rx-ring .6s ease-out; }
+.row.rx-done { background-image: linear-gradient(100deg, transparent 30%, rgba(57,210,122,.35) 50%, transparent 70%); background-size: 50% 100%; background-repeat: no-repeat; animation: rx-sweep .6s ease-out; }
+.track.full .fill { background: repeating-linear-gradient(90deg, #fff 0 5px, #000 5px 10px); background-size: 20px 100%; animation: rx-check .4s linear infinite; }
+.logo { transform-origin: 50% 60%; }
+.logo.rx-rev { animation: rx-rev .6s ease-out; }
+.tabs .tab { animation: rx-up .4s ease-out both; }
+.tabs .tab:nth-child(2) { animation-delay: .07s; } .tabs .tab:nth-child(3) { animation-delay: .14s; }
+.rx-spark { position: fixed; z-index: 98; width: 4px; height: 4px; border-radius: 1px; background: var(--accent); pointer-events: none; box-shadow: 0 0 6px var(--accent); animation: rx-spark .45s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .rx-enter > *, .rx-enter .row, .tabs .tab, .btn::after, .track.full .fill, .row.checked input, .mode[aria-checked="true"] { animation: none !important; } .rx-spark { display: none; } }
 </style>
 </head>
 <body>
@@ -169,7 +201,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v14</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v15</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -850,8 +882,59 @@ document.addEventListener("contextmenu", ev => ev.preventDefault());
 document.addEventListener("dblclick", ev => ev.preventDefault());
 </script>
 <script>
+/* --- Race-animaties: los blok, faalt stil --- */
+(function () { try {
+  var order = ["start", "end", "maint"], cur = null, reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function vis() { for (var i = 0; i < order.length; i++) { var el = document.getElementById("pane-" + order[i]); if (el && !el.hidden) return order[i]; } }
+  function enter(name, dir) {
+    var pane = document.getElementById("pane-" + name); if (!pane) return;
+    pane.style.setProperty("--d", dir);
+    [].forEach.call(pane.children, function (c, i) { c.style.setProperty("--i", Math.min(i, 8)); });
+    pane.querySelectorAll(".row").forEach(function (r, i) { r.style.setProperty("--i", Math.min(i, 14)); });
+    pane.classList.remove("rx-enter"); void pane.offsetWidth; pane.classList.add("rx-enter");
+    clearTimeout(pane._rx); pane._rx = setTimeout(function () { pane.classList.remove("rx-enter"); }, 1200);
+  }
+  function sparks(x, y, n, col) {
+    if (reduce) return;
+    for (var i = 0; i < n; i++) {
+      var s = document.createElement("i"), a = Math.random() * Math.PI * 2, r = 18 + Math.random() * 26;
+      s.className = "rx-spark"; s.style.left = x + "px"; s.style.top = y + "px";
+      s.style.setProperty("--x", Math.cos(a) * r + "px"); s.style.setProperty("--y", Math.sin(a) * r + "px");
+      if (col) { s.style.background = col; s.style.boxShadow = "0 0 6px " + col; }
+      document.body.appendChild(s); setTimeout(function (el) { el.remove(); }.bind(null, s), 500);
+    }
+  }
+  function fullCheck() { document.querySelectorAll(".track").forEach(function (t) { var f = t.querySelector(".fill"); t.classList.toggle("full", !!f && f.style.width === "100%"); }); }
+  cur = vis(); enter(cur, 1); fullCheck();
+  var logo = document.querySelector(".logo");
+  if (logo) { logo.classList.add("rx-rev"); logo.addEventListener("click", function () { logo.classList.remove("rx-rev"); void logo.offsetWidth; logo.classList.add("rx-rev"); }); }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest(".tab");
+    if (t) setTimeout(function () {
+      var now = vis(); if (now === cur) return;
+      var dir = order.indexOf(now) > order.indexOf(cur) ? 1 : -1; cur = now;
+      t.classList.remove("rx-go"); void t.offsetWidth; t.classList.add("rx-go"); enter(now, dir);
+    }, 0);
+    if (e.target.closest && e.target.closest(".reset, #mreset")) setTimeout(fullCheck, 0);
+  });
+  document.addEventListener("pointerdown", function (e) {
+    var b = e.target.closest && e.target.closest("button, .row, .mchip");
+    if (b) { sparks(e.clientX, e.clientY, 5); try { navigator.vibrate && navigator.vibrate(8); } catch (x) {} }
+  }, { passive: true });
+  document.addEventListener("change", function (e) {
+    var box = e.target; if (!box.matches || !box.matches(".row input")) return;
+    setTimeout(fullCheck, 0);
+    if (!box.checked) return;
+    var row = box.closest(".row"), r = box.getBoundingClientRect();
+    row.classList.remove("rx-done"); void row.offsetWidth; row.classList.add("rx-done");
+    setTimeout(function () { row.classList.remove("rx-done"); }, 700);
+    sparks(r.left + r.width / 2, r.top + r.height / 2, 9, "#39d27a");
+  });
+} catch (e) {} })();
+</script>
+<script>
 /* Live update: kijkt bij openen en bij terugkeren naar de app of er een nieuwere versie op GitHub staat */
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 async function checkUpdate() {
   try {
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
