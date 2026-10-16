@@ -165,7 +165,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v12</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v13</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -197,83 +197,100 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <script>
 /* 2D Sherco SM-R (zijaanzicht links). Onderdelen hebben data-part zodat ze kunnen oplichten. */
 function bikeSVG(pf) {
-  const spokes = (cx, cy) => Array.from({ length: 16 }, (_, i) => {
-    const a = i * Math.PI / 8, b = a + .35;
-    return `<line x1="${(cx + 9 * Math.cos(a)).toFixed(1)}" y1="${(cy + 9 * Math.sin(a)).toFixed(1)}" x2="${(cx + 50 * Math.cos(b)).toFixed(1)}" y2="${(cy + 50 * Math.sin(b)).toFixed(1)}"/>`;
+  // gietvelg met 10 dunne Y-spaken, zoals de SM-R 50
+  const spokes = (cx, cy) => Array.from({ length: 5 }, (_, i) => {
+    const a = i * 2 * Math.PI / 5 - Math.PI / 2, pts = [];
+    const P = (ang, r) => `${(cx + r * Math.cos(ang)).toFixed(1)} ${(cy + r * Math.sin(ang)).toFixed(1)}`;
+    return `<path d="M${P(a, 11)} L${P(a - .17, 47)} L${P(a - .05, 47)} L${P(a, 30)} L${P(a + .05, 47)} L${P(a + .17, 47)} Z" fill="#222226" stroke="#45464d" stroke-width="1"/>`;
   }).join("");
   const wheel = (cx, cy, part) => `
-    <g class="part" data-part="${part}"><circle class="pb" cx="${cx}" cy="${cy}" r="68" fill="#111113" stroke="#2c2c31" stroke-width="3"/>
-      <circle cx="${cx}" cy="${cy}" r="62" fill="none" stroke="#1d1d21" stroke-width="5" stroke-dasharray="4 5"/></g>
-    <circle cx="${cx}" cy="${cy}" r="52" fill="#0a0a0c" stroke="#3d3e45" stroke-width="3"/>
-    <g stroke="#4c4d55" stroke-width="1.1">${spokes(cx, cy)}</g>
-    <circle cx="${cx}" cy="${cy}" r="9" fill="#2a2b31" stroke="#5a5b63" stroke-width="1.5"/>`;
+    <g class="part" data-part="${part}"><circle class="pb" cx="${cx}" cy="${cy}" r="68" fill="#141416" stroke="#232327" stroke-width="2"/>
+      <circle cx="${cx}" cy="${cy}" r="63" fill="none" stroke="#1f1f23" stroke-width="2"/>
+      <path d="M${cx - 60} ${cy - 18} A62 62 0 0 1 ${cx - 18} ${cy - 60}" fill="none" stroke="#2e2e33" stroke-width="2"/></g>
+    <circle cx="${cx}" cy="${cy}" r="50" fill="none" stroke="#1b1b1e" stroke-width="5"/>
+    <circle cx="${cx}" cy="${cy}" r="47.5" fill="none" stroke="#7d7f86" stroke-width="1.4"/>
+    ${spokes(cx, cy)}
+    <circle cx="${cx}" cy="${cy}" r="11" fill="#1b1b1e" stroke="#3a3b41" stroke-width="1.5"/><circle cx="${cx}" cy="${cy}" r="4" fill="#77787f"/>`;
+  const disc = (cx, cy, r) => {
+    const n = 24, d = Array.from({ length: n * 2 }, (_, i) => { const a = i * Math.PI / n, rr = i % 2 ? r - 1.6 : r + .6; return `${(cx + rr * Math.cos(a)).toFixed(1)} ${(cy + rr * Math.sin(a)).toFixed(1)}`; });
+    return `<path d="M${d.join(" L")} Z" fill="none" stroke="#9fa1a8" stroke-width="4"/>`;
+  };
   return `<svg class="bike" viewBox="0 0 600 340" aria-hidden="true">
   <defs>
-    <linearGradient id="${pf}-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2e2e35"/><stop offset="1" stop-color="#0e0e11"/></linearGradient>
-    <linearGradient id="${pf}-chrome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d6f78"/><stop offset=".5" stop-color="#c9cbd3"/><stop offset="1" stop-color="#6d6f78"/></linearGradient>
-    <filter id="${pf}-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="${pf}-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2a2f"/><stop offset="1" stop-color="#0c0c0e"/></linearGradient>
+    <linearGradient id="${pf}-grey" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7d7f86"/><stop offset="1" stop-color="#4b4c52"/></linearGradient>
+    <linearGradient id="${pf}-chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eceef2"/><stop offset=".5" stop-color="#a9acb4"/><stop offset="1" stop-color="#6f727a"/></linearGradient>
+    <linearGradient id="${pf}-ti" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6e6a63"/><stop offset=".5" stop-color="#b3ada3"/><stop offset="1" stop-color="#6e6a63"/></linearGradient>
     <linearGradient id="${pf}-hot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".45" stop-color="#ff7a2a"/><stop offset="1" stop-color="#b8321a"/></linearGradient>
     <clipPath id="${pf}-clip-cyl"><rect id="${pf}-cr-cyl" x="290" y="194" width="75" height="0"/></clipPath>
     <clipPath id="${pf}-clip-case"><rect id="${pf}-cr-case" x="225" y="265" width="125" height="0"/></clipPath>
     <clipPath id="${pf}-clip-rad"><rect id="${pf}-cr-rad" x="350" y="214" width="40" height="0"/></clipPath>
+    <filter id="${pf}-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <filter id="${pf}-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
   </defs>
   <ellipse cx="305" cy="326" rx="250" ry="7" fill="#000" opacity=".5"/>
-  <!-- remschijven en wielen -->
-  <g class="part" data-part="discR"><circle cx="150" cy="255" r="31" fill="none" stroke="#8d8f98" stroke-width="6" stroke-dasharray="5 3"/><rect class="pb" x="108" y="262" width="16" height="22" rx="3" fill="#b33a2a" transform="rotate(25 116 273)"/></g>
+  <!-- golvende remschijven, wielen -->
+  <g class="part" data-part="discR">${disc(150, 255, 32)}<rect class="pb" x="106" y="260" width="16" height="22" rx="3" fill="#2a2b30" stroke="#55565c" stroke-width="1" transform="rotate(25 114 271)"/></g>
   ${wheel(150, 255, "tyreR")}
   ${wheel(465, 255, "tyreF")}
-  <g class="part" data-part="discF"><circle cx="465" cy="255" r="40" fill="none" stroke="#9a9ca5" stroke-width="7" stroke-dasharray="6 3"/><rect class="pb" x="484" y="214" width="15" height="26" rx="3" fill="#b33a2a" transform="rotate(-25 491 227)"/></g>
-  <!-- achterbrug en ketting -->
-  <path d="M150 249 L266 214 L270 230 L152 263 Z" fill="#26262c" stroke="#3a3b42" stroke-width="1.5"/>
+  <g class="part" data-part="discF">${disc(465, 255, 41)}<rect class="pb" x="484" y="213" width="15" height="27" rx="3" fill="#2a2b30" stroke="#55565c" stroke-width="1" transform="rotate(-25 491 227)"/></g>
+  <!-- achterbrug met SM-logo, ketting -->
+  <path d="M150 248 L266 213 L271 231 L152 264 Z" fill="#141416" stroke="#2c2c31" stroke-width="1.5"/>
+  <text x="196" y="246" fill="#8a8c93" font-family="Barlow Condensed, sans-serif" font-weight="800" font-style="italic" font-size="12" transform="rotate(-16 196 246)">SM</text>
   <g class="part" data-part="chain">
-    <path d="M150 231 L268 215 A9 9 0 0 1 268 233 L150 279 A24 24 0 0 1 150 231 Z" fill="none" stroke="#8a8a92" stroke-width="4" stroke-dasharray="3 2"/>
-    <circle cx="150" cy="255" r="22" fill="none" stroke="#6a6b73" stroke-width="3"/><circle cx="268" cy="224" r="8" fill="#3a3b42" stroke="#6a6b73" stroke-width="2"/>
+    <path d="M150 231 L268 215 A9 9 0 0 1 268 233 L150 279 A24 24 0 0 1 150 231 Z" fill="none" stroke="#8a8a92" stroke-width="3.5" stroke-dasharray="3 2"/>
+    <circle cx="150" cy="255" r="22" fill="none" stroke="#9a9ba2" stroke-width="3"/><circle cx="268" cy="224" r="8" fill="#2a2b30" stroke="#6a6b73" stroke-width="2"/>
   </g>
-  <!-- frame -->
-  <path d="M405 112 L330 148 L268 212" fill="none" stroke="#3a3b42" stroke-width="10" stroke-linecap="round"/>
-  <path d="M403 122 L382 196 L345 246" fill="none" stroke="#3a3b42" stroke-width="7" stroke-linecap="round"/>
+  <!-- zwart frame -->
+  <path d="M405 112 L330 146 L268 212" fill="none" stroke="#1b1b1e" stroke-width="11" stroke-linecap="round"/>
+  <path d="M403 122 L382 196 L345 246" fill="none" stroke="#1b1b1e" stroke-width="8" stroke-linecap="round"/>
+  <path d="M268 212 L222 140" fill="none" stroke="#1b1b1e" stroke-width="7" stroke-linecap="round"/>
   <!-- luchtfilterbak -->
-  <g class="part" data-part="airbox"><path class="pb" d="M196 126 L256 131 L262 186 L216 190 Q199 170 196 126 Z" fill="#1b1b1f" stroke="#34353b" stroke-width="2"/><path d="M212 146 L246 149 M212 156 L247 159 M213 166 L248 169" stroke="#34353b" stroke-width="2"/></g>
+  <g class="part" data-part="airbox"><path class="pb" d="M196 126 L256 131 L262 186 L216 190 Q199 170 196 126 Z" fill="#17171a" stroke="#2c2c31" stroke-width="2"/><path d="M212 146 L246 149 M212 156 L247 159 M213 166 L248 169" stroke="#2c2c31" stroke-width="2"/></g>
   <!-- motorblok en cilinder -->
-  <path d="M240 194 L332 189 Q347 205 339 246 L300 263 L250 259 Q231 235 240 194 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
+  <path d="M240 194 L332 189 Q347 205 339 246 L300 263 L250 259 Q231 235 240 194 Z" fill="url(#${pf}-body)" stroke="#34353b" stroke-width="2"/>
   <path d="M240 194 L332 189 Q347 205 339 246 L300 263 L250 259 Q231 235 240 194 Z" fill="url(#${pf}-hot)" opacity=".85" clip-path="url(#${pf}-clip-case)"/>
-  <circle cx="298" cy="228" r="17" fill="#1c1c20" stroke="#44454c" stroke-width="2"/><circle cx="298" cy="228" r="6" fill="#33343a"/>
-  <path id="${pf}-cyl" d="M300 192 L338 190 L352 150 L318 146 Z" fill="#2c2d33" stroke="#45464d" stroke-width="1.5"/>
-  <path d="M305 182 L340 180 M309 172 L343 170 M313 162 L346 160 M316 153 L349 152" stroke="#45464d" stroke-width="2.5"/>
+  <circle cx="298" cy="228" r="17" fill="#141416" stroke="#3a3b41" stroke-width="2"/><circle cx="298" cy="228" r="6" fill="#2a2b30"/>
+  <path id="${pf}-cyl" d="M300 192 L338 190 L352 150 L318 146 Z" fill="#232328" stroke="#3a3b41" stroke-width="1.5"/>
+  <path d="M305 182 L340 180 M309 172 L343 170 M313 162 L346 160 M316 153 L349 152" stroke="#3a3b41" stroke-width="2.5"/>
   <g clip-path="url(#${pf}-clip-cyl)"><path d="M300 192 L338 190 L352 150 L318 146 Z M316 148 L353 151 L357 138 L320 135 Z" fill="url(#${pf}-hot)" opacity=".9"/>
     <path d="M305 182 L340 180 M309 172 L343 170 M313 162 L346 160 M316 153 L349 152" stroke="#7a2412" stroke-width="2.5"/></g>
-  <g class="part" data-part="plug"><path class="pb" d="M316 148 L353 151 L357 138 L320 135 Z" fill="#34353c" stroke="#4a4b52" stroke-width="1.5"/><rect x="333" y="124" width="7" height="12" rx="1.5" fill="#d8d9de"/><path d="M336 124 Q330 108 312 112" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round"/></g>
-  <!-- uitlaat: expansiekamer + demper -->
-  <path id="${pf}-exhglow" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 186 176 L 96 138" fill="none" stroke="#ff7a2a" stroke-width="26" stroke-linecap="round" filter="url(#${pf}-blur)" opacity="0"/>
+  <g class="part" data-part="plug"><path class="pb" d="M316 148 L353 151 L357 138 L320 135 Z" fill="#2c2d33" stroke="#45464d" stroke-width="1.5"/><rect x="333" y="124" width="7" height="12" rx="1.5" fill="#d8d9de"/><path d="M336 124 Q330 108 312 112" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round"/></g>
+  <!-- uitlaat: zwarte expansiekamer, zilveren demper hoog onder het zadel -->
+  <path id="${pf}-exhglow" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 192 182 L 90 128" fill="none" stroke="#ff7a2a" stroke-width="26" stroke-linecap="round" filter="url(#${pf}-blur)" opacity="0"/>
   <g class="part" data-part="exhaust">
-    <path id="${pf}-exh" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 186 176" fill="none" stroke="#3a3a40" stroke-width="16" stroke-linecap="round"/>
-    <path id="${pf}-exhf" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 186 176" fill="none" stroke="#ff7a2a" stroke-width="16" stroke-linecap="round" stroke-opacity="0"/>
-    <path id="${pf}-exhhi" d="M338 192 C 362 202, 368 240, 344 262 C 320 282, 266 286, 228 273" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="3" stroke-linecap="round"/>
-    <path id="${pf}-sil" d="M188 170 L96 138" fill="none" stroke="#2f2f35" stroke-width="20" stroke-linecap="round"/>
-    <path id="${pf}-silf" d="M188 170 L96 138" fill="none" stroke="#e8642a" stroke-width="20" stroke-linecap="round" stroke-opacity="0"/>
-    <path d="M182 162 L100 133" stroke="#fff" stroke-opacity=".1" stroke-width="3" stroke-linecap="round"/>
-    <circle id="${pf}-tip" cx="86" cy="134" r="2" fill="#111"/>
+    <path id="${pf}-exh" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 192 182" fill="none" stroke="#1d1d21" stroke-width="17" stroke-linecap="round"/>
+    <path d="M338 191 C 362 201, 368 240, 344 262 C 320 282, 266 286, 228 273" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="2.5" stroke-linecap="round"/>
+    <path id="${pf}-exhf" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 192 182" fill="none" stroke="#ff7a2a" stroke-width="17" stroke-linecap="round" stroke-opacity="0"/>
+    <path id="${pf}-sil" d="M196 172 L92 129" fill="none" stroke="url(#${pf}-chrome)" stroke-width="25" stroke-linecap="butt"/>
+    <path id="${pf}-silf" d="M196 172 L92 129" fill="none" stroke="#e8642a" stroke-width="25" stroke-linecap="butt" stroke-opacity="0"/>
+    <path d="M100 121 L92 140" stroke="#2a2b30" stroke-width="9" stroke-linecap="round"/>
+    <path d="M188 160 L104 125" stroke="#fff" stroke-opacity=".55" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="128" y="138" width="22" height="9" rx="2" fill="#c8102e" transform="rotate(22 139 142)"/>
+    <circle id="${pf}-tip" cx="86" cy="131" r="2" fill="#111"/>
   </g>
   <!-- radiateur -->
-  <g class="part" data-part="radiator"><rect class="pb" x="354" y="150" width="30" height="62" rx="3" fill="#1f2024" stroke="#3c3d44" stroke-width="2" transform="rotate(-10 369 181)"/>
+  <g class="part" data-part="radiator"><rect class="pb" x="354" y="150" width="30" height="62" rx="3" fill="#18181b" stroke="#34353b" stroke-width="2" transform="rotate(-10 369 181)"/>
     <rect x="354" y="150" width="30" height="62" rx="3" fill="url(#${pf}-hot)" opacity=".85" transform="rotate(-10 369 181)" clip-path="url(#${pf}-clip-rad)"/>
-    <path d="M362 156 L368 210 M369 155 L375 209 M376 154 L382 208" stroke="#3c3d44" stroke-width="1.5"/></g>
-  <!-- tank, kappen, zadel, staart -->
-  <path d="M318 117 Q360 101 410 111 L399 160 Q372 176 354 196 L338 150 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
-  <path d="M332 134 L396 124" stroke="#ff5a1f" stroke-width="4" stroke-linecap="round"/>
-  <path d="M180 110 L70 97 L78 107 L185 132 L256 134 L252 117 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
-  <path d="M180 110 L336 99 Q346 101 341 112 L190 124 Z" fill="#0f0f11" stroke="#27272c" stroke-width="2"/>
-  <text x="205" y="123" fill="#ff5a1f" font-family="Barlow Condensed, sans-serif" font-weight="800" font-style="italic" font-size="11" letter-spacing="1">SHERCO</text>
-  <!-- voorvork, stuur, voorspatbord, nummerplaat -->
-  <path d="M398 104 L440 198" stroke="#2e2f35" stroke-width="12" stroke-linecap="round"/>
-  <path d="M440 198 L465 255" stroke="url(#${pf}-chrome)" stroke-width="7" stroke-linecap="round"/>
-  <path d="M378 92 L422 85" stroke="#55565e" stroke-width="5" stroke-linecap="round"/><path d="M378 92 L392 90" stroke="#111" stroke-width="7" stroke-linecap="round"/>
-  <g class="part" data-part="master"><rect class="pb" x="408" y="76" width="14" height="9" rx="2" fill="#2b2c32" stroke="#4a4b52" stroke-width="1.5"/><path d="M420 84 L440 92" stroke="#77787f" stroke-width="3" stroke-linecap="round"/></g>
-  <path d="M424 186 Q470 168 516 190 L510 197 Q470 179 430 193 Z" fill="#16161a" stroke="#2c2c31" stroke-width="1.5"/>
-  <path d="M414 95 L438 91 L452 140 L430 150 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
-  <circle cx="433" cy="118" r="7" fill="#222" stroke="#5a5b63" stroke-width="1.5"/>
-  <rect x="258" y="236" width="18" height="5" rx="2" fill="#55565e"/>
+    <path d="M362 156 L368 210 M369 155 L375 209 M376 154 L382 208" stroke="#34353b" stroke-width="1.5"/></g>
+  <!-- staart, zijpaneel met grijze RACING-sticker, zadel, radiateurkap -->
+  <path d="M190 112 L72 86 L66 94 L80 104 L190 134 L258 136 L254 118 Z" fill="url(#${pf}-body)" stroke="#2e2e33" stroke-width="2"/>
+  <path d="M120 104 L188 120 L196 132 L130 116 Z" fill="url(#${pf}-grey)" opacity=".9"/>
+  <path d="M188 110 L336 98 Q347 100 342 112 L196 124 Z" fill="#0d0d0f" stroke="#222226" stroke-width="2"/>
+  <path d="M318 116 Q360 100 410 110 L401 162 Q372 178 354 198 L338 150 Z" fill="url(#${pf}-body)" stroke="#2e2e33" stroke-width="2"/>
+  <path d="M322 120 Q356 108 392 112 L386 150 Q366 160 350 176 Z" fill="url(#${pf}-grey)" opacity=".85"/>
+  <text x="333" y="140" fill="#111" font-family="Barlow Condensed, sans-serif" font-weight="800" font-style="italic" font-size="15" letter-spacing=".5" transform="rotate(-8 333 140)">SHERCO</text>
+  <text x="205" y="132" fill="#6c6e75" font-family="Barlow Condensed, sans-serif" font-weight="800" font-style="italic" font-size="20" transform="rotate(4 205 132)">RACING</text>
+  <!-- voorvork (zwart boven, titanium onder), stuur met handkappen, spatbord, nummerplaat -->
+  <path d="M398 104 L438 194" stroke="#1b1b1e" stroke-width="13" stroke-linecap="round"/>
+  <path d="M436 190 L465 255" stroke="url(#${pf}-ti)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M378 92 L422 85" stroke="#3d3e44" stroke-width="5" stroke-linecap="round"/><path d="M376 93 L392 90" stroke="#0e0e10" stroke-width="7" stroke-linecap="round"/>
+  <path d="M372 86 Q382 74 400 80 L396 90 Q384 86 376 94 Z" fill="#141416" stroke="#2c2c31" stroke-width="1.5"/>
+  <g class="part" data-part="master"><rect class="pb" x="408" y="76" width="14" height="9" rx="2" fill="#222226" stroke="#45464d" stroke-width="1.5"/><path d="M420 84 L440 92" stroke="#77787f" stroke-width="3" stroke-linecap="round"/></g>
+  <path d="M426 184 Q472 166 520 186 L514 194 Q472 177 432 192 Z" fill="#111113" stroke="#2a2a2e" stroke-width="1.5"/>
+  <path d="M412 92 L438 84 L456 138 L440 156 L428 150 Z" fill="url(#${pf}-body)" stroke="#2e2e33" stroke-width="2"/>
+  <path d="M430 110 L444 106 L448 124 L436 128 Z" fill="#2a2b30" stroke="#8a8c93" stroke-width="1.2"/>
+  <rect x="258" y="236" width="18" height="5" rx="2" fill="#8a8c93"/>
 </svg>`;
 }
 /* Kleur van heet metaal: grijs, donkerrood, oranje, geelwit */
@@ -823,7 +840,7 @@ document.addEventListener("dblclick", ev => ev.preventDefault());
 </script>
 <script>
 /* Live update: kijkt bij openen en bij terugkeren naar de app of er een nieuwere versie op GitHub staat */
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 async function checkUpdate() {
   try {
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
