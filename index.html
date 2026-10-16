@@ -77,7 +77,7 @@ h1 span { color: var(--accent); }
 .ov.finished .ov-glow { background: radial-gradient(circle at 50% 42%, var(--done), transparent 55%); opacity: .35; }
 .ov-in { position: relative; display: grid; justify-items: center; gap: 14px; width: min(100%, 520px); text-align: center; }
 .ov-mode { font-family: var(--display); font-weight: 700; letter-spacing: .25em; text-transform: uppercase; color: var(--muted); font-size: .9rem; }
-.ov svg { width: 100%; max-height: 52vh; display: block; overflow: visible; }
+.ov svg { width: 100%; max-height: 34vh; display: block; overflow: visible; }
 .ov .tick { stroke: var(--muted); stroke-width: 2; }
 .ov .tick.red { stroke: var(--red); }
 .ov .num { fill: var(--muted); font-family: var(--mono); font-size: 13px; text-anchor: middle; }
@@ -137,6 +137,23 @@ h1 { display: flex; align-items: center; gap: 10px; }
 h1 { font-size: clamp(1.8rem, 9vw, 2.6rem); min-width: 0; }
 .model { flex: none; font-size: .7rem; }
 .mchip { min-width: 0; overflow-wrap: anywhere; }
+#ov-bike { width: 100%; }
+.cam { position: relative; width: 100%; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: radial-gradient(90% 80% at 50% 60%, #1a1a1f, var(--black)); }
+#ov-bike svg { width: 100%; height: auto; max-height: none; aspect-ratio: 600 / 340; overflow: hidden; }
+.cam-cap { position: absolute; left: 0; top: 0; right: 0; padding: 8px 10px 22px; background: linear-gradient(to bottom, rgba(0,0,0,.85), rgba(0,0,0,.55) 60%, transparent); display: grid; justify-items: start; text-align: left; gap: 0; font-family: var(--display); text-transform: uppercase; letter-spacing: .08em; }
+.cam-cap b { color: var(--accent); font-size: .8rem; }
+.cam-cap span { font-weight: 800; font-style: italic; font-size: 1.2rem; line-height: 1; }
+.cam-cap small { font-family: var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); font-size: .78rem; }
+.ov.finished .cam-cap b { color: var(--done); }
+#gauge { max-height: 26vh; }
+.bike .part[data-hl] { animation: hlpulse 1s ease-in-out infinite alternate; }
+.bike .part[data-hl] circle, .bike .part[data-hl] path, .bike .part[data-hl] rect { stroke: #ff5a1f; }
+.bike .part[data-hl] .pb { fill: #4a1c0a; }
+@keyframes hlpulse { from { opacity: 1; } to { opacity: .55; } }
+.mbike { background: radial-gradient(90% 80% at 50% 60%, var(--surface-2), var(--bg)); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin-top: 18px; }
+.mbike svg { width: 100%; height: auto; display: block; }
+.mwhere { font-family: var(--display); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); text-align: center; font-size: .9rem; margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .bike .part[data-hl] { animation: none; } }
 </style>
 </head>
 <body>
@@ -148,7 +165,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
 <div class="wrap">
   <div class="head">
     <h1><img class="logo" src="logo.svg" alt="" width="40" height="40">Rit<span>-</span>check</h1>
-    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v10</div>
+    <div class="model">SHERCO 50 SM-R<br>BLACKMOON '23<br>v12</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -167,6 +184,7 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
   <canvas id="fx"></canvas>
   <div class="ov-in">
     <div class="ov-mode" id="ov-mode">Normaal · 1:30</div>
+    <div class="cam"><div id="ov-bike"></div><div class="cam-cap" id="cam-cap"><b id="cam-step">1/5</b> <span id="cam-name">Cilinder</span><small id="cam-note"></small></div></div>
     <div id="gauge-wrap"></div>
     <div class="leds"><div class="led"></div><div class="led"></div><div class="led"></div></div>
     <div class="stage" id="ov-stage">Koud</div>
@@ -176,6 +194,137 @@ window.addEventListener("error", e => { try { document.getElementById("err-msg")
   </div>
 </div>
 
+<script>
+/* 2D Sherco SM-R (zijaanzicht links). Onderdelen hebben data-part zodat ze kunnen oplichten. */
+function bikeSVG(pf) {
+  const spokes = (cx, cy) => Array.from({ length: 16 }, (_, i) => {
+    const a = i * Math.PI / 8, b = a + .35;
+    return `<line x1="${(cx + 9 * Math.cos(a)).toFixed(1)}" y1="${(cy + 9 * Math.sin(a)).toFixed(1)}" x2="${(cx + 50 * Math.cos(b)).toFixed(1)}" y2="${(cy + 50 * Math.sin(b)).toFixed(1)}"/>`;
+  }).join("");
+  const wheel = (cx, cy, part) => `
+    <g class="part" data-part="${part}"><circle class="pb" cx="${cx}" cy="${cy}" r="68" fill="#111113" stroke="#2c2c31" stroke-width="3"/>
+      <circle cx="${cx}" cy="${cy}" r="62" fill="none" stroke="#1d1d21" stroke-width="5" stroke-dasharray="4 5"/></g>
+    <circle cx="${cx}" cy="${cy}" r="52" fill="#0a0a0c" stroke="#3d3e45" stroke-width="3"/>
+    <g stroke="#4c4d55" stroke-width="1.1">${spokes(cx, cy)}</g>
+    <circle cx="${cx}" cy="${cy}" r="9" fill="#2a2b31" stroke="#5a5b63" stroke-width="1.5"/>`;
+  return `<svg class="bike" viewBox="0 0 600 340" aria-hidden="true">
+  <defs>
+    <linearGradient id="${pf}-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2e2e35"/><stop offset="1" stop-color="#0e0e11"/></linearGradient>
+    <linearGradient id="${pf}-chrome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d6f78"/><stop offset=".5" stop-color="#c9cbd3"/><stop offset="1" stop-color="#6d6f78"/></linearGradient>
+    <filter id="${pf}-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="${pf}-hot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".45" stop-color="#ff7a2a"/><stop offset="1" stop-color="#b8321a"/></linearGradient>
+    <clipPath id="${pf}-clip-cyl"><rect id="${pf}-cr-cyl" x="290" y="194" width="75" height="0"/></clipPath>
+    <clipPath id="${pf}-clip-case"><rect id="${pf}-cr-case" x="225" y="265" width="125" height="0"/></clipPath>
+    <clipPath id="${pf}-clip-rad"><rect id="${pf}-cr-rad" x="350" y="214" width="40" height="0"/></clipPath>
+    <filter id="${pf}-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
+  </defs>
+  <ellipse cx="305" cy="326" rx="250" ry="7" fill="#000" opacity=".5"/>
+  <!-- remschijven en wielen -->
+  <g class="part" data-part="discR"><circle cx="150" cy="255" r="31" fill="none" stroke="#8d8f98" stroke-width="6" stroke-dasharray="5 3"/><rect class="pb" x="108" y="262" width="16" height="22" rx="3" fill="#b33a2a" transform="rotate(25 116 273)"/></g>
+  ${wheel(150, 255, "tyreR")}
+  ${wheel(465, 255, "tyreF")}
+  <g class="part" data-part="discF"><circle cx="465" cy="255" r="40" fill="none" stroke="#9a9ca5" stroke-width="7" stroke-dasharray="6 3"/><rect class="pb" x="484" y="214" width="15" height="26" rx="3" fill="#b33a2a" transform="rotate(-25 491 227)"/></g>
+  <!-- achterbrug en ketting -->
+  <path d="M150 249 L266 214 L270 230 L152 263 Z" fill="#26262c" stroke="#3a3b42" stroke-width="1.5"/>
+  <g class="part" data-part="chain">
+    <path d="M150 231 L268 215 A9 9 0 0 1 268 233 L150 279 A24 24 0 0 1 150 231 Z" fill="none" stroke="#8a8a92" stroke-width="4" stroke-dasharray="3 2"/>
+    <circle cx="150" cy="255" r="22" fill="none" stroke="#6a6b73" stroke-width="3"/><circle cx="268" cy="224" r="8" fill="#3a3b42" stroke="#6a6b73" stroke-width="2"/>
+  </g>
+  <!-- frame -->
+  <path d="M405 112 L330 148 L268 212" fill="none" stroke="#3a3b42" stroke-width="10" stroke-linecap="round"/>
+  <path d="M403 122 L382 196 L345 246" fill="none" stroke="#3a3b42" stroke-width="7" stroke-linecap="round"/>
+  <!-- luchtfilterbak -->
+  <g class="part" data-part="airbox"><path class="pb" d="M196 126 L256 131 L262 186 L216 190 Q199 170 196 126 Z" fill="#1b1b1f" stroke="#34353b" stroke-width="2"/><path d="M212 146 L246 149 M212 156 L247 159 M213 166 L248 169" stroke="#34353b" stroke-width="2"/></g>
+  <!-- motorblok en cilinder -->
+  <path d="M240 194 L332 189 Q347 205 339 246 L300 263 L250 259 Q231 235 240 194 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
+  <path d="M240 194 L332 189 Q347 205 339 246 L300 263 L250 259 Q231 235 240 194 Z" fill="url(#${pf}-hot)" opacity=".85" clip-path="url(#${pf}-clip-case)"/>
+  <circle cx="298" cy="228" r="17" fill="#1c1c20" stroke="#44454c" stroke-width="2"/><circle cx="298" cy="228" r="6" fill="#33343a"/>
+  <path id="${pf}-cyl" d="M300 192 L338 190 L352 150 L318 146 Z" fill="#2c2d33" stroke="#45464d" stroke-width="1.5"/>
+  <path d="M305 182 L340 180 M309 172 L343 170 M313 162 L346 160 M316 153 L349 152" stroke="#45464d" stroke-width="2.5"/>
+  <g clip-path="url(#${pf}-clip-cyl)"><path d="M300 192 L338 190 L352 150 L318 146 Z M316 148 L353 151 L357 138 L320 135 Z" fill="url(#${pf}-hot)" opacity=".9"/>
+    <path d="M305 182 L340 180 M309 172 L343 170 M313 162 L346 160 M316 153 L349 152" stroke="#7a2412" stroke-width="2.5"/></g>
+  <g class="part" data-part="plug"><path class="pb" d="M316 148 L353 151 L357 138 L320 135 Z" fill="#34353c" stroke="#4a4b52" stroke-width="1.5"/><rect x="333" y="124" width="7" height="12" rx="1.5" fill="#d8d9de"/><path d="M336 124 Q330 108 312 112" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round"/></g>
+  <!-- uitlaat: expansiekamer + demper -->
+  <path id="${pf}-exhglow" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 186 176 L 96 138" fill="none" stroke="#ff7a2a" stroke-width="26" stroke-linecap="round" filter="url(#${pf}-blur)" opacity="0"/>
+  <g class="part" data-part="exhaust">
+    <path id="${pf}-exh" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 186 176" fill="none" stroke="#3a3a40" stroke-width="16" stroke-linecap="round"/>
+    <path id="${pf}-exhf" d="M338 196 C 366 206, 374 246, 346 268 C 320 289, 264 293, 224 279 C 198 268, 190 232, 186 176" fill="none" stroke="#ff7a2a" stroke-width="16" stroke-linecap="round" stroke-opacity="0"/>
+    <path id="${pf}-exhhi" d="M338 192 C 362 202, 368 240, 344 262 C 320 282, 266 286, 228 273" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="3" stroke-linecap="round"/>
+    <path id="${pf}-sil" d="M188 170 L96 138" fill="none" stroke="#2f2f35" stroke-width="20" stroke-linecap="round"/>
+    <path id="${pf}-silf" d="M188 170 L96 138" fill="none" stroke="#e8642a" stroke-width="20" stroke-linecap="round" stroke-opacity="0"/>
+    <path d="M182 162 L100 133" stroke="#fff" stroke-opacity=".1" stroke-width="3" stroke-linecap="round"/>
+    <circle id="${pf}-tip" cx="86" cy="134" r="2" fill="#111"/>
+  </g>
+  <!-- radiateur -->
+  <g class="part" data-part="radiator"><rect class="pb" x="354" y="150" width="30" height="62" rx="3" fill="#1f2024" stroke="#3c3d44" stroke-width="2" transform="rotate(-10 369 181)"/>
+    <rect x="354" y="150" width="30" height="62" rx="3" fill="url(#${pf}-hot)" opacity=".85" transform="rotate(-10 369 181)" clip-path="url(#${pf}-clip-rad)"/>
+    <path d="M362 156 L368 210 M369 155 L375 209 M376 154 L382 208" stroke="#3c3d44" stroke-width="1.5"/></g>
+  <!-- tank, kappen, zadel, staart -->
+  <path d="M318 117 Q360 101 410 111 L399 160 Q372 176 354 196 L338 150 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
+  <path d="M332 134 L396 124" stroke="#ff5a1f" stroke-width="4" stroke-linecap="round"/>
+  <path d="M180 110 L70 97 L78 107 L185 132 L256 134 L252 117 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
+  <path d="M180 110 L336 99 Q346 101 341 112 L190 124 Z" fill="#0f0f11" stroke="#27272c" stroke-width="2"/>
+  <text x="205" y="123" fill="#ff5a1f" font-family="Barlow Condensed, sans-serif" font-weight="800" font-style="italic" font-size="11" letter-spacing="1">SHERCO</text>
+  <!-- voorvork, stuur, voorspatbord, nummerplaat -->
+  <path d="M398 104 L440 198" stroke="#2e2f35" stroke-width="12" stroke-linecap="round"/>
+  <path d="M440 198 L465 255" stroke="url(#${pf}-chrome)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M378 92 L422 85" stroke="#55565e" stroke-width="5" stroke-linecap="round"/><path d="M378 92 L392 90" stroke="#111" stroke-width="7" stroke-linecap="round"/>
+  <g class="part" data-part="master"><rect class="pb" x="408" y="76" width="14" height="9" rx="2" fill="#2b2c32" stroke="#4a4b52" stroke-width="1.5"/><path d="M420 84 L440 92" stroke="#77787f" stroke-width="3" stroke-linecap="round"/></g>
+  <path d="M424 186 Q470 168 516 190 L510 197 Q470 179 430 193 Z" fill="#16161a" stroke="#2c2c31" stroke-width="1.5"/>
+  <path d="M414 95 L438 91 L452 140 L430 150 Z" fill="url(#${pf}-body)" stroke="#3b3c43" stroke-width="2"/>
+  <circle cx="433" cy="118" r="7" fill="#222" stroke="#5a5b63" stroke-width="1.5"/>
+  <rect x="258" y="236" width="18" height="5" rx="2" fill="#55565e"/>
+</svg>`;
+}
+/* Kleur van heet metaal: grijs, donkerrood, oranje, geelwit */
+function heatColor(p) {
+  const st = [[0, [58, 58, 64]], [.35, [110, 38, 26]], [.7, [214, 72, 26]], [1, [255, 186, 90]]];
+  for (let i = 1; i < st.length; i++) if (p <= st[i][0]) {
+    const [a, ca] = st[i - 1], [b, cb] = st[i], k = (p - a) / (b - a);
+    return `rgb(${ca.map((c, j) => Math.round(c + (cb[j] - c) * k)).join(",")})`;
+  }
+  return "rgb(255,186,90)";
+}
+/* Cutscene: camera zoomt per onderdeel in en vult het met warmte */
+const BIKE_FULL = [0, 0, 600, 340];
+const WARM_STAGES = [
+  { name: "Cilinder", note: "De verbranding warmt eerst de cilinder op", box: [240, 109, 180, 102], fill: "cyl" },
+  { name: "Motorblok", note: "Dan het blok en de versnellingsbak", box: [190, 170, 200, 113], fill: "case" },
+  { name: "Koelvloeistof", note: "De koelvloeistof in de radiateur wordt warm", box: [285, 134, 170, 96], fill: "rad" },
+  { name: "Uitlaat", note: "De hete gassen vullen de expansiekamer", box: [140, 160, 280, 159], fill: "exh" },
+  { name: "Demper", note: "Tot in de demper achteraan", box: [40, 99, 200, 113], fill: "sil" },
+];
+const smooth = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+const lerpBox = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+const strokeLens = {};
+function setPartFill(pf, key, f) {
+  const el = id => document.getElementById(pf + "-" + id);
+  if (key === "exh" || key === "sil") {
+    const path = el(key + "f"); if (!path) return;
+    let L = strokeLens[pf + key];
+    if (!L) { try { L = path.getTotalLength(); } catch (e) { L = 0; } if (L) strokeLens[pf + key] = L; }
+    if (!L) return;
+    path.setAttribute("stroke-dasharray", L); path.setAttribute("stroke-dashoffset", (L * (1 - f)).toFixed(1));
+    path.setAttribute("stroke-opacity", f > 0 ? 1 : 0);
+  } else {
+    const r = el("cr-" + key); if (!r) return;
+    const bottom = { cyl: 194, case: 265, rad: 214 }[key], top = { cyl: 132, case: 186, rad: 148 }[key];
+    const h = (bottom - top) * f; r.setAttribute("y", bottom - h); r.setAttribute("height", h);
+  }
+}
+/* p = 0..1 warmte; outro = 0..1 uitzoomen na het einde. Geeft de actieve stage terug. */
+function setBikeWarm(pf, p, outro) {
+  const svg = document.querySelector("#ov-bike svg"); const N = WARM_STAGES.length;
+  const idx = Math.min(N - 1, Math.floor(p * N)), u = p * N - idx;
+  WARM_STAGES.forEach((st, i) => setPartFill(pf, st.fill, i < idx ? 1 : i > idx ? 0 : smooth((u - .15) / .85)));
+  let box;
+  if (outro != null) { WARM_STAGES.forEach(st => setPartFill(pf, st.fill, 1)); box = lerpBox(WARM_STAGES[N - 1].box, BIKE_FULL, smooth(outro)); }
+  else box = lerpBox(idx ? WARM_STAGES[idx - 1].box : BIKE_FULL, WARM_STAGES[idx].box, smooth(u / .2));
+  if (svg) svg.setAttribute("viewBox", box.map(v => v.toFixed(1)).join(" "));
+  const g = document.getElementById(pf + "-exhglow"); if (g) g.setAttribute("opacity", outro != null ? (.8 * smooth(outro)).toFixed(2) : 0);
+  return outro != null ? null : WARM_STAGES[idx];
+}
+</script>
 <script>
 const lists = {
   start: {
@@ -317,7 +466,7 @@ show(fromHash || (["end", "maint"].includes(lastTab) ? lastTab : "start"));
 <script>
 /* Onderhoud: eigen script, zodat een fout hier de rest niet stillegt */
 const MAINT = [
-  { id: "ketting", name: "Ketting", every: "300–500 km of na regen", groups: [
+  { id: "ketting", name: "Ketting", every: "300–500 km of na regen", parts: ["chain"], where: "Tussen achterwiel en motor", groups: [
     { title: "Stap 1 · Klaarzetten", items: [
       { what: "Motor uit en in neutraal", why: "In neutraal kan je hem rollen. Nooit de ketting draaien met de motor aan of in een versnelling: je vingers!" },
       { what: "Op de zijstandaard, of op een paddockstand", why: "Met een paddockstand kan je het achterwiel gewoon met je hand ronddraaien." },
@@ -349,7 +498,7 @@ const MAINT = [
     "Niet op de achterband, remschijf of remklauw spuiten. Kwam er toch iets op? Afvegen met remmenreiniger en eerst voorzichtig remmen testen.",
     "Een dunne laag is genoeg.",
   ]},
-  { id: "banden", name: "Bandenspanning", every: "Elke week", groups: [
+  { id: "banden", name: "Bandenspanning", every: "Elke week", parts: ["tyreF","tyreR"], where: "Voor- en achterband", groups: [
     { title: "Stap 1 · Meten", items: [
       { what: "Meet met koude banden", why: "Niet net na een rit, warme banden geven een te hoge waarde." },
       { what: "Dopje van het ventiel en de meter erop", why: "Aan een tankstation of met je eigen drukmeter." },
@@ -363,7 +512,7 @@ const MAINT = [
   ], tips: [
     "Te zachte banden slijten snel en sturen slecht. Te harde banden hebben minder grip.",
   ]},
-  { id: "koeling", name: "Koelvloeistof", every: "Elke week", groups: [
+  { id: "koeling", name: "Koelvloeistof", every: "Elke week", parts: ["radiator"], where: "Radiateur, vooraan onder de tank", groups: [
     { title: "Stap 1 · Kijken", items: [
       { what: "Motor helemaal koud", why: "Nooit de dop openen bij een warme motor: de vloeistof staat onder druk en is kokend heet." },
       { what: "Moto rechtop", why: "Anders lees je het niveau verkeerd." },
@@ -376,7 +525,7 @@ const MAINT = [
   ], tips: [
     "Moet je vaak bijvullen? Dan lekt er iets. Laat het nakijken.",
   ]},
-  { id: "remmen", name: "Remvloeistof", every: "Elke maand", groups: [
+  { id: "remmen", name: "Remvloeistof", every: "Elke maand", parts: ["master","discF","discR"], where: "Potjes aan stuur en rempedaal, schijven aan de wielen", groups: [
     { title: "Stap 1 · Kijken", items: [
       { what: "Moto rechtop, stuur recht", why: "Zo staat het potje aan je stuur vlak." },
       { what: "Kijk door het venstertje voor en achter", why: "Voor aan je stuur, achter bij het rempedaal." },
@@ -390,7 +539,7 @@ const MAINT = [
     "Remvloeistof tast lak aan. Gemorst? Meteen afvegen met water.",
     "Bij twijfel over je remmen: laat het doen in de garage.",
   ]},
-  { id: "filter", name: "Luchtfilter", every: "Elke maand", groups: [
+  { id: "filter", name: "Luchtfilter", every: "Elke maand", parts: ["airbox"], where: "Onder het zadel, achter de zijkap", groups: [
     { title: "Stap 1 · Eruit halen", items: [
       { what: "Zijkap of zadel eraf", why: "Daaronder zit de luchtfilterkast." },
       { what: "Spons eruit halen", why: "Kijk goed hoe hij zat, zodat hij er zo terug in gaat." },
@@ -408,7 +557,7 @@ const MAINT = [
     "Rijd je veel in stof of zand? Vaker kuisen.",
     "Gescheurde spons? Vervangen, niet terugzetten.",
   ]},
-  { id: "bougie", name: "Bougie", every: "4000 km of slecht starten", groups: [
+  { id: "bougie", name: "Bougie", every: "4000 km of slecht starten", parts: ["plug"], where: "Bovenop de cilinder", groups: [
     { title: "Stap 1 · Eruit", items: [
       { what: "Motor koud", why: "De bougie zit vast in heet metaal, dat kan je schroefdraad beschadigen." },
       { what: "Bougiedop eraf trekken", why: "Trek aan de dop, niet aan de kabel." },
@@ -438,6 +587,7 @@ const MAINT = [
   function draw() {
     const t = MAINT.find(x => x.id === sel);
     pane.innerHTML = `
+      <div class="mbike">${typeof bikeSVG === "function" ? bikeSVG("mb") : ""}<div class="mwhere">${t.where}</div></div>
       <div class="group"><h2>Wat ga je doen?</h2>
         <div class="mpick">${MAINT.map(m => `
           <button class="mchip" type="button" data-id="${m.id}" aria-pressed="${m.id === sel}">
@@ -465,6 +615,9 @@ const MAINT = [
       pane.querySelector(".count").textContent = n + "/" + keys.length;
       keys.forEach(k => { const b = document.getElementById(k); b.checked = !!state[k]; b.closest(".row").classList.toggle("checked", b.checked); });
     };
+    pane.querySelectorAll(".bike .part").forEach(g => {
+      if (t.parts.includes(g.dataset.part)) { g.setAttribute("data-hl", ""); g.setAttribute("filter", "url(#mb-glow)"); }
+    });
     keys.forEach(k => document.getElementById(k).addEventListener("change", e => { state[k] = e.target.checked; save(); update(); }));
     pane.querySelectorAll(".mchip").forEach(b => b.addEventListener("click", () => { sel = b.dataset.id; state._mt = sel; save(); draw(); }));
     document.getElementById("mreset").addEventListener("click", () => { keys.forEach(k => delete state[k]); save(); update(); });
@@ -504,12 +657,13 @@ function gaugeSVG() {
   </svg>`;
 }
 document.getElementById("gauge-wrap").innerHTML = gaugeSVG();
+document.getElementById("ov-bike").innerHTML = bikeSVG("ob");
 const ov = document.getElementById("ov"), arcEl = document.getElementById("warm-arc"), needle = document.getElementById("warm-needle"), gauge = document.getElementById("gauge");
 const arcLen = R * (A1 - A0) * Math.PI / 180;
 
 /* --- Effecten (canvas) --- */
 const cv = document.getElementById("fx"), cx = cv.getContext("2d");
-let W = 0, H = 0, parts = [], rings = [], spawnAcc = 0, lastRing = 0, lastT = 0;
+let W = 0, H = 0, parts = [], rings = [], smoke = [], smokeAcc = 0, spawnAcc = 0, lastRing = 0, lastT = 0;
 function sizeCanvas() { const d = Math.min(devicePixelRatio || 1, 2); W = cv.clientWidth; H = cv.clientHeight; cv.width = W * d; cv.height = H * d; cx.setTransform(d, 0, 0, d, 0, 0); }
 addEventListener("resize", () => { if (!ov.hidden) sizeCanvas(); });
 function gaugeCenter() { const r = gauge.getBoundingClientRect(), o = ov.getBoundingClientRect(); return [r.left - o.left + r.width * .5, r.top - o.top + r.height * (150 / 225)]; }
@@ -531,6 +685,19 @@ function fxFrame(t, p, running) {
     spawnAcc += dt * (2 + 60 * p * p); while (spawnAcc > 1) { spawnEmber(p); spawnAcc--; }
     const interval = 1100 - 800 * p; // pulsen gaan sneller naarmate hij warmer wordt
     if (t - lastRing > interval) { rings.push({ r: 60, a: .25 + .55 * p, speed: 120 + 260 * p }); lastRing = t; }
+  }
+  // rook uit de demper: een koude tweetakt rookt meer, warm wordt het dunner
+  const tip = document.getElementById("ob-tip");
+  const camR = document.getElementById("ov-bike").getBoundingClientRect(), tr0 = tip && tip.getBoundingClientRect();
+  if (running && !reduced && tip && tr0.left > camR.left && tr0.left < camR.right && tr0.top > camR.top && tr0.top < camR.bottom) {
+    const tr = tr0, o = ov.getBoundingClientRect();
+    smokeAcc += dt * (9 - 5 * p);
+    while (smokeAcc > 1) { smoke.push({ x: tr.left - o.left, y: tr.top - o.top, vx: -(20 + Math.random() * 30), vy: -(8 + Math.random() * 18), r: 3 + Math.random() * 3, a: .35 - .2 * p }); smokeAcc--; }
+  }
+  smoke = smoke.filter(q => q.a > .01);
+  for (const q of smoke) {
+    q.x += q.vx * dt; q.y += q.vy * dt; q.r += 14 * dt; q.a *= Math.pow(.35, dt);
+    cx.fillStyle = `rgba(170,172,180,${q.a})`; cx.beginPath(); cx.arc(q.x, q.y, q.r, 0, Math.PI * 2); cx.fill();
   }
   const [gx, gy] = gaugeCenter();
   cx.lineWidth = 2;
@@ -573,6 +740,9 @@ function drawGauge(p, t, finished) {
   if (!reduced && !finished) { const a = .3 + 2.6 * p * p; gauge.style.transform = `translate(${(Math.random() - .5) * a}px, ${(Math.random() - .5) * a}px)`; }
   else gauge.style.transform = "";
   ov.style.setProperty("--p", finished ? 1 : p.toFixed(3));
+  const st = setBikeWarm("ob", finished ? 1 : p, finished ? Math.min(1, (t - endAt) / 1400) : null);
+  if (st) { document.getElementById("cam-step").textContent = (WARM_STAGES.indexOf(st) + 1) + "/" + WARM_STAGES.length; document.getElementById("cam-name").textContent = st.name; document.getElementById("cam-note").textContent = st.note; }
+  else { document.getElementById("cam-step").textContent = "Klaar"; document.getElementById("cam-name").textContent = "Heel het systeem warm"; document.getElementById("cam-note").textContent = ""; }
 }
 function loop(t) {
   if (phase === "running") {
@@ -604,7 +774,7 @@ function beep() {
 }
 async function startWarm() {
   const m = MODES[modeIdx];
-  warmSecs = m.secs; phase = "running"; parts = []; rings = []; lastT = 0; lastRing = 0;
+  warmSecs = m.secs; phase = "running"; parts = []; rings = []; smoke = []; lastT = 0; lastRing = 0;
   ov.classList.remove("finished");
   document.getElementById("ov-mode").textContent = `${m.name} · ${fmt(m.secs)}`;
   document.getElementById("ov-stop").textContent = "Stop timer";
@@ -653,7 +823,7 @@ document.addEventListener("dblclick", ev => ev.preventDefault());
 </script>
 <script>
 /* Live update: kijkt bij openen en bij terugkeren naar de app of er een nieuwere versie op GitHub staat */
-const APP_VERSION = 10;
+const APP_VERSION = 12;
 async function checkUpdate() {
   try {
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
